@@ -27,6 +27,9 @@ class sepConv3dBlock(nn.Module):
     '''
     def __init__(self, in_planes, out_planes, stride=(1,1,1)):
         super(sepConv3dBlock, self).__init__()
+
+        self.flagReLUInplace = GLOBAL.torch_relu_inplace()
+
         if in_planes == out_planes and stride==(1,1,1):
             self.downsample = None
         else:
@@ -36,10 +39,10 @@ class sepConv3dBlock(nn.Module):
             
 
     def forward(self,x):
-        out = F.relu(self.conv1(x),inplace=True)
+        out = F.relu(self.conv1(x),inplace=self.flagReLUInplace)
         if self.downsample:
             x = self.downsample(x)
-        out = F.relu(x + self.conv2(out),inplace=True)
+        out = F.relu(x + self.conv2(out),inplace=self.flagReLUInplace)
         return out
 
 class projfeat3d(nn.Module):
@@ -48,9 +51,11 @@ class projfeat3d(nn.Module):
     '''
     def __init__(self, in_planes, out_planes, stride):
         super(projfeat3d, self).__init__()
+        self.flagTS = GLOBAL.torch_batch_normal_track_stat()
+
         self.stride = stride
         self.conv1 = nn.Conv2d(in_planes, out_planes, (1,1), padding=(0,0), stride=stride[:2],bias=False)
-        self.bn = nn.BatchNorm2d(out_planes)
+        self.bn = nn.BatchNorm2d(out_planes, track_running_stats=self.flagTS)
 
     def forward(self,x):
         b,c,d,h,w = x.size()
@@ -72,6 +77,7 @@ class decoderBlock(nn.Module):
         super(decoderBlock, self).__init__()
 
         self.flagAlignCorners = GLOBAL.torch_align_corners()
+        self.flagReLUInplace  = GLOBAL.torch_relu_inplace()
 
         self.pool=pool
         stride = [stride]*nstride + [(1,1,1)] * (nconvs-nstride)
@@ -81,7 +87,7 @@ class decoderBlock(nn.Module):
         self.convs = nn.Sequential(*self.convs)
 
         self.classify = nn.Sequential(sepConv3d(channelF, channelF, 3, (1,1,1), 1),
-                                       nn.ReLU(inplace=True),
+                                       nn.ReLU(inplace=self.flagReLUInplace),
                                        sepConv3d(channelF, 1, 3, (1,1,1),1,bias=True))
 
         self.up = False
@@ -89,7 +95,7 @@ class decoderBlock(nn.Module):
             self.up = True
             self.up = nn.Sequential(nn.Upsample(scale_factor=(2,2,2),mode='trilinear', align_corners=self.flagAlignCorners),
                                  sepConv3d(channelF, channelF//2, 3, (1,1,1),1,bias=False),
-                                 nn.ReLU(inplace=True))
+                                 nn.ReLU(inplace=self.flagReLUInplace))
 
         if pool:
             self.pool_convs = torch.nn.ModuleList([sepConv3d(channelF, channelF, 1, (1,1,1), 0),
@@ -125,7 +131,7 @@ class decoderBlock(nn.Module):
                 out = F.upsample(out, size=(d,h,w), 
                     mode='trilinear', align_corners=self.flagAlignCorners)
                 fvl_out = fvl_out + 0.25*out
-            fvl = F.relu(fvl_out/2.,inplace=True)
+            fvl = F.relu(fvl_out/2.,inplace=self.flagReLUInplace)
 
        # #TODO cost aggregation
        # costl = self.classify(fvl)
@@ -162,6 +168,10 @@ class disparityregression(nn.Module):
         #self.disp = Variable(torch.Tensor(np.reshape(np.array(range(maxDisp)),[1,maxDisp,1,1])).cuda(), requires_grad=False)
         self.register_buffer('disp',torch.Tensor(np.reshape(np.array(range(maxDisp)),[1,maxDisp,1,1])))
         self.divisor = divisor
+
+    def initialize(self):
+        # Do nothing.
+        pass
 
     def forward(self, x,ifent=False):
         disp = self.disp.repeat(x.size()[0],1,x.size()[2],x.size()[3])

@@ -11,6 +11,7 @@ MODELS = dict(
     HSMNet=HSMNet )
 
 def make_model(d):
+    '''Make a model from dict d. '''
     assert( isinstance(d,  dict) ), f'd must be dict. d is {type(d)}'
     
     # Make a deep copy of the input dict.

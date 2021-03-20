@@ -24,6 +24,8 @@ class conv2DBatchNorm(nn.Module):
     def __init__(self, in_channels, n_filters, k_size,  stride, padding, bias=True, dilation=1, with_bn=True):
         super(conv2DBatchNorm, self).__init__()
 
+        self.flagTS = GLOBAL.torch_batch_normal_track_stat()
+
         if dilation > 1:
             conv_mod = nn.Conv2d(int(in_channels), int(n_filters), kernel_size=k_size,
                                  padding=padding, stride=stride, bias=bias, dilation=dilation)
@@ -35,7 +37,7 @@ class conv2DBatchNorm(nn.Module):
 
         if with_bn:
             self.cb_unit = nn.Sequential(conv_mod,
-                                         nn.BatchNorm2d(int(n_filters)),)
+                                         nn.BatchNorm2d(int(n_filters), track_running_stats=self.flagTS),)
         else:
             self.cb_unit = nn.Sequential(conv_mod,)
 
@@ -47,6 +49,9 @@ class conv2DBatchNormRelu(nn.Module):
     def __init__(self, in_channels, n_filters, k_size,  stride, padding, bias=True, dilation=1, with_bn=True):
         super(conv2DBatchNormRelu, self).__init__()
 
+        self.flagTS = GLOBAL.torch_batch_normal_track_stat()
+        self.flagReLUInplace = GLOBAL.torch_relu_inplace()
+
         if dilation > 1:
             conv_mod = nn.Conv2d(int(in_channels), int(n_filters), kernel_size=k_size, 
                                  padding=padding, stride=stride, bias=bias, dilation=dilation)
@@ -57,11 +62,11 @@ class conv2DBatchNormRelu(nn.Module):
 
         if with_bn:
             self.cbr_unit = nn.Sequential(conv_mod,
-                                          nn.BatchNorm2d(int(n_filters)),
-                                          nn.LeakyReLU(0.1, inplace=True),)
+                                          nn.BatchNorm2d(int(n_filters), track_running_stats=self.flagTS),
+                                          nn.LeakyReLU(0.1, inplace=self.flagReLUInplace),)
         else:
             self.cbr_unit = nn.Sequential(conv_mod,
-                                          nn.LeakyReLU(0.1, inplace=True),)
+                                          nn.LeakyReLU(0.1, inplace=self.flagReLUInplace),)
 
     def forward(self, inputs):
         outputs = self.cbr_unit(inputs)
@@ -73,6 +78,8 @@ class residualBlock(nn.Module):
     def __init__(self, in_channels, n_filters, stride=1, downsample=None,dilation=1):
         super(residualBlock, self).__init__()
 
+        self.flagReLUInplace = GLOBAL.torch_relu_inplace()
+
         if dilation > 1:
             padding = dilation
         else:
@@ -81,7 +88,7 @@ class residualBlock(nn.Module):
         self.convbn2 = conv2DBatchNorm(n_filters, n_filters, 3, 1, 1, bias=False)
         self.downsample = downsample
         self.stride = stride
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=self.flagReLUInplace)
 
     def forward(self, x):
         residual = x
@@ -93,7 +100,7 @@ class residualBlock(nn.Module):
             residual = self.downsample(x)
 
         out += residual
-        #out = self.relu(out)
+        #out = self.relu(out, inplace=self.flagReLUInplace)
         return out
 
 class pyramidPooling(nn.Module):
@@ -102,6 +109,7 @@ class pyramidPooling(nn.Module):
         super(pyramidPooling, self).__init__()
 
         self.flagAlignCorners = GLOBAL.torch_align_corners()
+        self.flagReLUInplace  = GLOBAL.torch_relu_inplace()
 
         bias = not with_bn
 
@@ -156,7 +164,7 @@ class pyramidPooling(nn.Module):
                 out = F.upsample(out, size=(h,w), 
                     mode='bilinear', align_corners=self.flagAlignCorners)
                 pp_sum = pp_sum + 0.25*out
-            pp_sum = F.relu(pp_sum/2.,inplace=True)
+            pp_sum = F.relu(pp_sum/2.,inplace=self.flagReLUInplace)
 
             return pp_sum
 
@@ -170,6 +178,9 @@ class UNet(nn.Module):
 
     def __init__(self, initialChannels=32):
         super(UNet, self).__init__()
+
+        self.flagTS = GLOBAL.torch_batch_normal_track_stat()
+
         self.inplanes = initialChannels
 
         # Encoder
@@ -203,11 +214,25 @@ class UNet(nn.Module):
         self.iconv3 = conv2DBatchNormRelu(in_channels=128, k_size=3, n_filters=64,
                                                  padding=1, stride=1, bias=False)
 
-        self.proj6 = conv2DBatchNormRelu(in_channels=128,k_size=1,n_filters=32,padding=0,stride=1,bias=False)
+        self.proj6 = conv2DBatchNormRelu(in_channels=128,k_size=1,n_filters=32, padding=0,stride=1,bias=False)
         self.proj5 = conv2DBatchNormRelu(in_channels=128,k_size=1,n_filters=16, padding=0,stride=1,bias=False)
         self.proj4 = conv2DBatchNormRelu(in_channels=128,k_size=1,n_filters=16, padding=0,stride=1,bias=False)
         self.proj3 = conv2DBatchNormRelu(in_channels=64, k_size=1,n_filters=16, padding=0,stride=1,bias=False)
 
+    def _make_layer(self, block, planes, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(nn.Conv2d(self.inplanes, planes * block.expansion,
+                                                 kernel_size=1, stride=stride, bias=False),
+                                       nn.BatchNorm2d(planes * block.expansion, track_running_stats=self.flagTS),)
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block.expansion
+        for i in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+        return nn.Sequential(*layers)
+
+    def initialize(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
@@ -221,20 +246,6 @@ class UNet(nn.Module):
 #                m.bias.data.zero_()
 #                m.running_mean.data.fill_(0)
 #                m.running_var.data.fill_(1)
-       
-
-    def _make_layer(self, block, planes, blocks, stride=1):
-        downsample = None
-        if stride != 1 or self.inplanes != planes * block.expansion:
-            downsample = nn.Sequential(nn.Conv2d(self.inplanes, planes * block.expansion,
-                                                 kernel_size=1, stride=stride, bias=False),
-                                       nn.BatchNorm2d(planes * block.expansion),)
-        layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample))
-        self.inplanes = planes * block.expansion
-        for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes))
-        return nn.Sequential(*layers)
 
     def forward(self, x):
         # H, W -> H/2, W/2

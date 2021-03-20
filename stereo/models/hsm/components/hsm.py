@@ -30,8 +30,13 @@ class HSMNet(nn.Module):
 
         super(HSMNet, self).__init__()
 
+        # Global setttings.
         self.flagAlignCorners = GLOBAL.torch_align_corners()
 
+        self.toBeInitializedHere = [] # Modules that need to be initialzed here.
+        self.toBeInitializedImpl = [] # Modules that have their own initialization sequeences.
+
+        # ========== Module definition. ==========
         self.maxdisp = maxdisp
         self.clean   = clean
         self.level   = level
@@ -41,18 +46,27 @@ class HSMNet(nn.Module):
             featExtConfig = UNet.get_default_init_args()
 
         self.feature_extraction = make_object(FEAT_EXT, featExtConfig)
+        self.toBeInitializedImpl.append(self.feature_extraction)
         
         # block 4
         self.decoder6 = decoderBlock(6,32,32,up=True, pool=True)
+        self.toBeInitializedHere.append(self.decoder6)
+
         if self.level > 2:
             self.decoder5 = decoderBlock(6,32,32,up=False, pool=True)
+            self.toBeInitializedHere.append(self.decoder5)
         else:
             self.decoder5 = decoderBlock(6,32,32,up=True, pool=True)
+            self.toBeInitializedHere.append(self.decoder5)
             if self.level > 1:
                 self.decoder4 = decoderBlock(6,32,32, up=False)
+                self.toBeInitializedHere.append(self.decoder4)
             else:
                 self.decoder4 = decoderBlock(6,32,32, up=True)
                 self.decoder3 = decoderBlock(5,32,32, stride=(2,1,1),up=False, nstride=1)
+
+                self.toBeInitializedHere.append(self.decoder4)
+                self.toBeInitializedHere.append(self.decoder3)
         
         # Disparity regressions.
 
@@ -71,6 +85,24 @@ class HSMNet(nn.Module):
         self.disp_reg16 = make_object(DISP_REG, dispRegConfigs[1])
         self.disp_reg32 = make_object(DISP_REG, dispRegConfigs[2])
         self.disp_reg64 = make_object(DISP_REG, dispRegConfigs[3])
+
+        self.toBeInitializedImpl.append(self.disp_reg8)
+        self.toBeInitializedImpl.append(self.disp_reg16)
+        self.toBeInitializedImpl.append(self.disp_reg32)
+        self.toBeInitializedImpl.append(self.disp_reg64)
+
+    def initialize(self):
+        for m in self.toBeInitializedHere:
+            for mm in m.modules():
+                if ( isinstance( mm, nn.BatchNorm2d ) ):
+                    mm.weight.data.fill_(1.0)
+                    mm.bias.data.zero_()
+                elif ( isinstance( mm, nn.InstanceNorm2d ) ):
+                    mm.weight.data.fill_(1.0)
+                    mm.bias.data.zero_()
+        
+        for m in self.toBeInitializedImpl:
+            m.initialize()
 
     def feature_vol(self, refimg_fea, targetimg_fea,maxdisp, leftview=True):
         '''
