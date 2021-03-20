@@ -20,10 +20,8 @@ from .submodule import *
 from .utils import UNet
 
 from .register import (
-    FEAT_EXT, DISP_REG, MODELS, 
-    register, make_object )
+    FEAT_EXT, DISP_REG, make_object )
 
-@register(MODELS)
 class HSMNet(nn.Module):
     def __init__(self, 
         maxdisp=192, clean=-1, level=1, 

@@ -3,4 +3,4 @@
 # Date: 2021-03-20
 
 from stereo.models.hsm import components
-from . import model_factory
+from stereo.models.hsm.components.hsm import HSMNet

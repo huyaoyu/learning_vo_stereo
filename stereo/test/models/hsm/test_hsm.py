@@ -62,10 +62,10 @@ if __name__ == '__main__':
             ] )
 
     # Make a HSMNet object.
-    hsm = stereo.models.hsm.model_factory.make_model(d)
+    hsm = stereo.models.model_factory.make_model(d)
 
     # Make a HSMNet with default settings.
-    hsm = stereo.models.hsm.model_factory.make_model(dict(type='HSMNet'))
+    hsm = stereo.models.model_factory.make_model(dict(type='HSMNet'))
 
     # Show the model
     # print(hsm)

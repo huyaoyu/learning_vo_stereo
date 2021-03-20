@@ -7,7 +7,6 @@ import copy
 
 FEAT_EXT=dict()
 DISP_REG=dict()
-MODELS=dict()
 
 def register(dst):
     '''Register a class to a dstination dictionary. '''
