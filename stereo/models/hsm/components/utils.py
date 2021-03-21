@@ -176,7 +176,7 @@ class UNet(nn.Module):
             type=cls.__name__,
             initialChannels=32 )
 
-    def __init__(self, initialChannels=32):
+    def __init__(self, initialChannels=32, freeze=False):
         super(UNet, self).__init__()
 
         self.flagTS = GLOBAL.torch_batch_normal_track_stat()
@@ -218,6 +218,11 @@ class UNet(nn.Module):
         self.proj5 = conv2DBatchNormRelu(in_channels=128,k_size=1,n_filters=16, padding=0,stride=1,bias=False)
         self.proj4 = conv2DBatchNormRelu(in_channels=128,k_size=1,n_filters=16, padding=0,stride=1,bias=False)
         self.proj3 = conv2DBatchNormRelu(in_channels=64, k_size=1,n_filters=16, padding=0,stride=1,bias=False)
+
+        if ( freeze ):
+            # Freeze this instance and all its components.
+            for p in self.parameters():
+                p.requires_grad = False
 
     def _make_layer(self, block, planes, blocks, stride=1):
         downsample = None

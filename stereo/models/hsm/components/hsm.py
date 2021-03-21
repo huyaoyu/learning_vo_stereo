@@ -26,7 +26,8 @@ class HSMNet(nn.Module):
     def __init__(self, 
         maxdisp=192, clean=-1, level=1, 
         featExtConfig=None, 
-        dispRegConfigs=None):
+        dispRegConfigs=None,
+        freeze=False):
 
         super(HSMNet, self).__init__()
 
@@ -90,6 +91,11 @@ class HSMNet(nn.Module):
         self.toBeInitializedImpl.append(self.disp_reg16)
         self.toBeInitializedImpl.append(self.disp_reg32)
         self.toBeInitializedImpl.append(self.disp_reg64)
+
+        if ( freeze ):
+            # Freeze this instance and all its components.
+            for p in self.parameters():
+                p.requires_grad = False
 
     def initialize(self):
         for m in self.toBeInitializedHere:

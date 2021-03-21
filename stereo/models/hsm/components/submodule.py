@@ -162,12 +162,17 @@ class disparityregression(nn.Module):
             maxDisp=192,
             divisor=1)
 
-    def __init__(self, maxDisp, divisor):
+    def __init__(self, maxDisp, divisor, freeze=False):
         super(disparityregression, self).__init__()
         maxDisp = int(maxDisp/divisor)
         #self.disp = Variable(torch.Tensor(np.reshape(np.array(range(maxDisp)),[1,maxDisp,1,1])).cuda(), requires_grad=False)
         self.register_buffer('disp',torch.Tensor(np.reshape(np.array(range(maxDisp)),[1,maxDisp,1,1])))
         self.divisor = divisor
+
+        if ( freeze ):
+            # Freeze this instance and all its components.
+            for p in self.parameters():
+                p.requires_grad = False
 
     def initialize(self):
         # Do nothing.
