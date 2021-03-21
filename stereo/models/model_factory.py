@@ -5,10 +5,10 @@
 
 import copy
 
-from .hsm import HSMNet
+from .hsm_ori import HSMNet as HSM_Ori
 
 MODELS = dict(
-    HSMNet=HSMNet )
+    HSM_Ori=HSM_Ori )
 
 def make_model(d):
     '''Make a model from dict d. '''

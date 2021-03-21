@@ -35,7 +35,7 @@ if __name__ == '__main__':
     # The dummy dictionary.
     maxDisp = 192
     d = dict(
-        type='HSMNet',
+        type='HSM_Ori',
         maxdisp=maxDisp, 
         clean=-1, 
         level=1,
@@ -69,7 +69,7 @@ if __name__ == '__main__':
     hsm.initialize()
 
     # Make a HSMNet with default settings.
-    hsm = stereo.models.model_factory.make_model(dict(type='HSMNet'))
+    hsm = stereo.models.model_factory.make_model(dict(type='HSM_Ori'))
     hsm.initialize()
 
     # Show the model
