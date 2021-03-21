@@ -116,7 +116,6 @@ class residualBlock(BaseModule):
         return out
 
 class pyramidPooling(BaseModule):
-
     def __init__(self, in_channels, pool_sizes, model_name='pspnet', fusion_mode='cat', with_bn=True):
         super(pyramidPooling, self).__init__()
 
