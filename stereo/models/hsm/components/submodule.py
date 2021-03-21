@@ -16,11 +16,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # Local packages.
+from .base_module import BaseModule
 from .register import ( DISP_REG, register )
 
 # ====================================================
 
-class sepConv3dBlock(nn.Module):
+class sepConv3dBlock(BaseModule):
     '''
     Separable 3d convolution block as 2 separable convolutions and a projection
     layer
@@ -36,7 +37,9 @@ class sepConv3dBlock(nn.Module):
             self.downsample = projfeat3d(in_planes, out_planes,stride)
         self.conv1 = sepConv3d(in_planes, out_planes, 3, stride, 1)
         self.conv2 = sepConv3d(out_planes, out_planes, 3, (1,1,1), 1)
-            
+    
+    def initialize(self):
+        super(sepConv3dBlock, self).initialize()
 
     def forward(self,x):
         out = F.relu(self.conv1(x),inplace=self.flagReLUInplace)
@@ -45,7 +48,7 @@ class sepConv3dBlock(nn.Module):
         out = F.relu(x + self.conv2(out),inplace=self.flagReLUInplace)
         return out
 
-class projfeat3d(nn.Module):
+class projfeat3d(BaseModule):
     '''
     Turn 3d projection into 2d projection
     '''
@@ -56,6 +59,9 @@ class projfeat3d(nn.Module):
         self.stride = stride
         self.conv1 = nn.Conv2d(in_planes, out_planes, (1,1), padding=(0,0), stride=stride[:2],bias=False)
         self.bn = nn.BatchNorm2d(out_planes, track_running_stats=self.flagTS)
+
+    def initialize(self):
+        super(projfeat3d, self).initialize()
 
     def forward(self,x):
         b,c,d,h,w = x.size()
@@ -72,7 +78,7 @@ def sepConv3d(in_planes, out_planes, kernel_size, stride, pad,bias=False):
         return nn.Sequential(nn.Conv3d(in_planes, out_planes, kernel_size=kernel_size, padding=pad, stride=stride,bias=bias),
                          nn.BatchNorm3d(out_planes))
 
-class decoderBlock(nn.Module):
+class decoderBlock(BaseModule):
     def __init__(self, nconvs, inchannelF,channelF,stride=(1,1,1),up=False, nstride=1,pool=False):
         super(decoderBlock, self).__init__()
 
@@ -103,6 +109,7 @@ class decoderBlock(nn.Module):
                                sepConv3d(channelF, channelF, 1, (1,1,1), 0),
                                sepConv3d(channelF, channelF, 1, (1,1,1), 0)])
 
+    def initialize(self):
         for m in self.modules():
             if isinstance(m, nn.Conv3d):
                 n = m.kernel_size[0] * m.kernel_size[1]*m.kernel_size[2] * m.out_channels
@@ -116,6 +123,8 @@ class decoderBlock(nn.Module):
             #    m.bias.data.zero_()
             #    m.running_mean.data.fill_(0)
             #    m.running_var.data.fill_(1)
+
+        self.mark_initialized()
 
     def forward(self,fvl):
         # left
@@ -153,7 +162,7 @@ class decoderBlock(nn.Module):
         return fvl,costl.squeeze(1)
 
 @register(DISP_REG)
-class disparityregression(nn.Module):
+class disparityregression(BaseModule):
 
     @classmethod
     def get_default_init_args(cls):
@@ -163,20 +172,18 @@ class disparityregression(nn.Module):
             divisor=1)
 
     def __init__(self, maxDisp, divisor, freeze=False):
-        super(disparityregression, self).__init__()
+        super(disparityregression, self).__init__(freeze=freeze)
         maxDisp = int(maxDisp/divisor)
         #self.disp = Variable(torch.Tensor(np.reshape(np.array(range(maxDisp)),[1,maxDisp,1,1])).cuda(), requires_grad=False)
         self.register_buffer('disp',torch.Tensor(np.reshape(np.array(range(maxDisp)),[1,maxDisp,1,1])))
         self.divisor = divisor
 
-        if ( freeze ):
-            # Freeze this instance and all its components.
-            for p in self.parameters():
-                p.requires_grad = False
+        # Must be called at the end of __init__().
+        self.update_freeze()
 
     def initialize(self):
         # Do nothing.
-        pass
+        self.mark_initialized()
 
     def forward(self, x,ifent=False):
         disp = self.disp.repeat(x.size()[0],1,x.size()[2],x.size()[3])

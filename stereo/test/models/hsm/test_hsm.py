@@ -42,6 +42,9 @@ if __name__ == '__main__':
         featExtConfig=dict(
             type='UNet',
             initialChannels=32 ),
+        costVolConfig=dict(
+            type='CVDiff',
+            refIsRight=False),
         dispRegConfigs=[
             dict(
                 type='disparityregression',

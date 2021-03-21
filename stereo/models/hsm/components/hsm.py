@@ -16,26 +16,26 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # Local packages.
+from .base_module import BaseModule
 from .submodule import *
-from .utils import UNet
+from .feature_extractor import UNet
+from .cost_volume import CVDiff
 
 from .register import (
-    FEAT_EXT, DISP_REG, make_object )
+    FEAT_EXT, COST_VOL, DISP_REG, make_object )
 
-class HSMNet(nn.Module):
+class HSMNet(BaseModule):
     def __init__(self, 
         maxdisp=192, clean=-1, level=1, 
         featExtConfig=None, 
+        costVolConfig=None,
         dispRegConfigs=None,
         freeze=False):
 
-        super(HSMNet, self).__init__()
+        super(HSMNet, self).__init__(freeze=freeze)
 
         # Global setttings.
         self.flagAlignCorners = GLOBAL.torch_align_corners()
-
-        self.toBeInitializedHere = [] # Modules that need to be initialzed here.
-        self.toBeInitializedImpl = [] # Modules that have their own initialization sequeences.
 
         # ========== Module definition. ==========
         self.maxdisp = maxdisp
@@ -46,28 +46,35 @@ class HSMNet(nn.Module):
         if ( featExtConfig is None ):
             featExtConfig = UNet.get_default_init_args()
 
-        self.feature_extraction = make_object(FEAT_EXT, featExtConfig)
-        self.toBeInitializedImpl.append(self.feature_extraction)
+        self.featureExtractor = make_object(FEAT_EXT, featExtConfig)
+        self.append_init_impl(self.featureExtractor)
         
+        # Cost volume.
+        if ( costVolConfig is None ):
+            costVolConfig = CVDiff.get_default_init_args()
+        
+        self.costVol = make_object(COST_VOL, costVolConfig)
+        self.append_init_impl(self.costVol)
+
         # block 4
         self.decoder6 = decoderBlock(6,32,32,up=True, pool=True)
-        self.toBeInitializedHere.append(self.decoder6)
+        self.append_init_impl(self.decoder6)
 
         if self.level > 2:
             self.decoder5 = decoderBlock(6,32,32,up=False, pool=True)
-            self.toBeInitializedHere.append(self.decoder5)
+            self.append_init_impl(self.decoder5)
         else:
             self.decoder5 = decoderBlock(6,32,32,up=True, pool=True)
-            self.toBeInitializedHere.append(self.decoder5)
+            self.append_init_impl(self.decoder5)
             if self.level > 1:
                 self.decoder4 = decoderBlock(6,32,32, up=False)
-                self.toBeInitializedHere.append(self.decoder4)
+                self.append_init_impl(self.decoder4)
             else:
                 self.decoder4 = decoderBlock(6,32,32, up=True)
                 self.decoder3 = decoderBlock(5,32,32, stride=(2,1,1),up=False, nstride=1)
 
-                self.toBeInitializedHere.append(self.decoder4)
-                self.toBeInitializedHere.append(self.decoder3)
+                self.append_init_impl(self.decoder4)
+                self.append_init_impl(self.decoder3)
         
         # Disparity regressions.
 
@@ -87,30 +94,19 @@ class HSMNet(nn.Module):
         self.disp_reg32 = make_object(DISP_REG, dispRegConfigs[2])
         self.disp_reg64 = make_object(DISP_REG, dispRegConfigs[3])
 
-        self.toBeInitializedImpl.append(self.disp_reg8)
-        self.toBeInitializedImpl.append(self.disp_reg16)
-        self.toBeInitializedImpl.append(self.disp_reg32)
-        self.toBeInitializedImpl.append(self.disp_reg64)
+        self.append_init_impl(self.disp_reg8)
+        self.append_init_impl(self.disp_reg16)
+        self.append_init_impl(self.disp_reg32)
+        self.append_init_impl(self.disp_reg64)
 
-        if ( freeze ):
-            # Freeze this instance and all its components.
-            for p in self.parameters():
-                p.requires_grad = False
+        # Must be called at the end of __init__().
+        self.update_freeze()
 
+    # Override.
     def initialize(self):
-        for m in self.toBeInitializedHere:
-            for mm in m.modules():
-                if ( isinstance( mm, nn.BatchNorm2d ) ):
-                    mm.weight.data.fill_(1.0)
-                    mm.bias.data.zero_()
-                elif ( isinstance( mm, nn.InstanceNorm2d ) ):
-                    mm.weight.data.fill_(1.0)
-                    mm.bias.data.zero_()
-        
-        for m in self.toBeInitializedImpl:
-            m.initialize()
+        super(HSMNet, self).initialize()
 
-    def feature_vol(self, refimg_fea, targetimg_fea,maxdisp, leftview=True):
+    def feature_vol(self, refimg_fea, targetimg_fea, maxdisp, leftview=True):
         '''
         diff feature volume
         '''
@@ -132,14 +128,14 @@ class HSMNet(nn.Module):
 
     def forward(self, left, right):
         nsample = left.shape[0]
-        conv4,conv3,conv2,conv1  = self.feature_extraction(torch.cat([left,right],0))
+        conv4,conv3,conv2,conv1  = self.featureExtractor(torch.cat([left,right],0))
         conv40,conv30,conv20,conv10  = conv4[:nsample], conv3[:nsample], conv2[:nsample], conv1[:nsample]
         conv41,conv31,conv21,conv11  = conv4[nsample:], conv3[nsample:], conv2[nsample:], conv1[nsample:]
 
-        feat6 = self.feature_vol(conv40, conv41, self.maxdisp//64)
-        feat5 = self.feature_vol(conv30, conv31, self.maxdisp//32)
-        feat4 = self.feature_vol(conv20, conv21, self.maxdisp//16)
-        feat3 = self.feature_vol(conv10, conv11, self.maxdisp//8)
+        feat6 = self.costVol( conv40, conv41, self.maxdisp//64 )
+        feat5 = self.costVol( conv30, conv31, self.maxdisp//32 )
+        feat4 = self.costVol( conv20, conv21, self.maxdisp//16 )
+        feat3 = self.costVol( conv10, conv11, self.maxdisp//8  )
 
         feat6_2x, cost6 = self.decoder6(feat6)
         feat5 = torch.cat((feat6_2x, feat5),dim=1)

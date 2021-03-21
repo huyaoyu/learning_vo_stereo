@@ -6,6 +6,8 @@
 import copy
 
 FEAT_EXT=dict()
+COST_VOL=dict()
+COST_PRC=dict() # Cost processing.
 DISP_REG=dict()
 
 def register(dst):
