@@ -5,23 +5,12 @@
 
 import copy
 
-from .hsm_ori import HSMNet as HSM_Ori
+# from .hsm_ori import HSMNet as HSM_Ori
 
-MODELS = dict(
-    HSM_Ori=HSM_Ori )
+# MODELS = dict(
+#     HSM_Ori=HSM_Ori )
+
+from .register import ( MODELS, make_object )
 
 def make_model(d):
-    '''Make a model from dict d. '''
-    assert( isinstance(d,  dict) ), f'd must be dict. d is {type(d)}'
-    
-    # Make a deep copy of the input dict.
-    d = copy.deepcopy(d)
-
-    # Get the type.
-    typeName = MODELS[ d['type'] ]
-
-    # Remove the type string from the input dictionary.
-    d.pop('type')
-
-    # Create the model.
-    return typeName( **d )
+    return make_object(MODELS, d)
