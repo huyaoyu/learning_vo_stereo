@@ -19,8 +19,8 @@ from stereo.models.common.base_module import BaseModule
 from stereo.models.register import ( COST_VOL, register )
 
 class CostVolume3D(BaseModule):
-    def __init__(self, refIsRight=False):
-        super(CostVolume3D, self).__init__()
+    def __init__(self, refIsRight=False, freeze=False):
+        super(CostVolume3D, self).__init__(freeze=freeze)
 
         self.refIsRight = refIsRight
 
@@ -33,10 +33,11 @@ class CVConcat(CostVolume3D):
     def get_default_init_args(cls):
         return dict(
             type=cls.__name__,
-            refIsRight=False )
+            refIsRight=False, 
+            freeze=False)
 
-    def __init__(self, refIsRight=False):
-        super(CVConcat, self).__init__(refIsRight)
+    def __init__(self, refIsRight=False, freeze=False):
+        super(CVConcat, self).__init__(refIsRight, freeze)
 
     def initialize(self):
         # Do nothing.
@@ -51,10 +52,11 @@ class CVDiff(CostVolume3D):
     def get_default_init_args(cls):
         return dict(
             type=cls.__name__,
-            refIsRight=False )
+            refIsRight=False, 
+            freeze=False)
 
-    def __init__(self, refIsRight=False):
-        super(CVDiff, self).__init__(refIsRight)
+    def __init__(self, refIsRight=False, freeze=False):
+        super(CVDiff, self).__init__(refIsRight, freeze)
 
     def initialize(self):
         # Do nothing.
@@ -63,8 +65,8 @@ class CVDiff(CostVolume3D):
     def forward(self, featL, featR, maxDisp):
         W = featL.shape[-1]
 
-        cost = torch.Tensor( 
-            ( featL.size()[0], featL.size()[1], maxDisp, featL.size()[2],  featL.size()[3] ),
+        cost = torch.zeros( 
+            ( featL.size()[0], featL.size()[1], maxDisp, featL.size()[2], featL.size()[3] ),
             device=featL.device )
 
         for i in range(maxDisp):

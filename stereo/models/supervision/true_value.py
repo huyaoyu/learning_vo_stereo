@@ -11,6 +11,8 @@ import torch.nn.functional as F
 from stereo.models.globals import GLOBAL as modelGLOBAL
 from .classification_label import float_2_cls_label
 
+from stereo.models.register import ( TRUE_GEN, register )
+
 # TT stands for true value terms
 class TT(object):
     DISP      = 'dispL'
@@ -53,6 +55,7 @@ class TrueValueGenerator(object):
 
         return self.interpolate_bool(m, newShape)
 
+@register(TRUE_GEN)
 class MultiScaleTrueValues(TrueValueGenerator):
     def __init__(self, scales, trueDispMax, flagIntNearest=False):
         super(MultiScaleTrueValues, self).__init__(
@@ -99,6 +102,7 @@ class MultiScaleTrueValues(TrueValueGenerator):
 
         return trueValues
 
+@register(TRUE_GEN)
 class OriScaleTrueValues(TrueValueGenerator):
     def __init__(self, trueDispMax, flagIntNearest=False):
         super(OriScaleTrueValues, self).__init__(

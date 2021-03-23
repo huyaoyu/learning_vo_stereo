@@ -27,7 +27,8 @@ class UNet(BaseModule):
     def get_default_init_args(cls):
         return dict(
             type=cls.__name__,
-            initialChannels=32 )
+            initialChannels=32,
+            freeze=False )
 
     def __init__(self, initialChannels=32, freeze=False):
         super(UNet, self).__init__(freeze=freeze)
@@ -112,7 +113,7 @@ class UNet(BaseModule):
                 normLayer=cm.FeatureNormalization(interCh) )
         
         layers = [ block(self.inplanes, interCh, stride, downsample) ]
-
+        self.inplanes = interCh
         for i in range(1, blocks):
             layers.append(block(interCh, interCh))
         

@@ -8,6 +8,8 @@ import torch.nn.functional as F
 from stereo.models.globals import GLOBAL as modelGLOBAL
 from stereo.models.supervision.true_value import TT
 
+from stereo.models.register import ( LOSS_CMP, register )
+
 # LT stands for loss term
 class LT(object):
     LOSS      = 'loss'
@@ -66,6 +68,7 @@ class ListLosses(LossComputer):
 
         return loss
 
+@register(LOSS_CMP)
 class MultiScaleLoss(ListLosses):
     def __init__(self, 
         weights=None,
@@ -123,6 +126,7 @@ self.nWeights = {self.nWeights}, len(dispTLs) = {len(dispTLs)}'
             LT.LOSS: loss,
             LT.LOSS_LIST: losses }
 
+@register(LOSS_CMP)
 class OriScaleLoss(ListLosses):
     def __init__(self, 
         weights=None,

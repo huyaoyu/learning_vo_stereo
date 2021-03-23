@@ -1,25 +1,29 @@
 # coding=utf-8
 
 # Author: Yaoyu Hu <yaoyuh@andrew.cmu.edu>
-# Date: 2021-03-21
+# Date: 2021-03-22
 
 import copy
 
-FEAT_EXT=dict()
-COST_VOL=dict()
-COST_PRC=dict() # Cost processing.
-DISP_REG=dict()
-TRUE_GEN=dict() # True value generator.
-LOSS_CMP=dict() # Loss computer.
+PRE_PROCESSORS=dict()
+FILE_READERS=dict()
+DATASET_LOADERS=dict()
 
-MODELS=dict()
-
-def register(dst):
+def register(dst, name=None):
     '''Register a class to a dstination dictionary. '''
     def dec_register(cls):
-        dst[cls.__name__] = cls
+        if ( name is None ):
+            dst[cls.__name__] = cls
+        else:
+            dst[name] = cls
         return cls
     return dec_register
+
+def register_manually(dst, cls, name=None):
+    if ( name is None ):
+        dst[cls.__name__] = cls
+    else:
+        dst[name] = cls
 
 def make_object(typeD, argD):
     '''Make an object from type collection typeD. '''

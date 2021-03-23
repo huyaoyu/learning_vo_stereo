@@ -40,7 +40,7 @@ class Conv(BaseModule):
         moduleList = [
             nn.ReflectionPad2d(padding=p),
             nn.Conv2d(inCh, outCh, 
-                kernel_size=k, stride=1, padding=0, dilation=d, bias=bias) ]
+                kernel_size=k, stride=s, padding=0, dilation=d, bias=bias) ]
         
         if ( normLayer is not None ):
             moduleList.append( normLayer )

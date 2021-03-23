@@ -25,7 +25,8 @@ class ClsLinearCombination(BaseModule):
         return dict( 
             type=cls.__name__,
             maxDisp=192,
-            divisor=1)
+            divisor=1, 
+            freeze=False)
 
     def __init__(self, maxDisp, divisor, freeze=False):
         super(ClsLinearCombination, self).__init__(freeze=freeze)

@@ -19,6 +19,7 @@ from stereo.models.common.base_module import BaseModule
 from stereo.models.cost.cost_volume import CVDiff
 from stereo.models.disparity_regression.cls_linear_combination import ClsLinearCombination
 from stereo.models.feature_extractor.unet import UNet
+from stereo.models.supervision.true_value import TT
 from .submodules import *
 
 from stereo.models.register import (
@@ -27,7 +28,7 @@ from stereo.models.register import (
 @register(MODELS)
 class HSMNet(BaseModule):
     def __init__(self, 
-        maxdisp=192, clean=-1, level=1, 
+        maxDisp=192, level=1, 
         featExtConfig=None, 
         costVolConfig=None,
         dispRegConfigs=None,
@@ -39,8 +40,7 @@ class HSMNet(BaseModule):
         self.flagAlignCorners = GLOBAL.torch_align_corners()
 
         # ========== Module definition. ==========
-        self.maxdisp = maxdisp
-        self.clean   = clean
+        self.maxDisp = maxDisp
         self.level   = level
 
         # Feature extractor.
@@ -79,10 +79,10 @@ class HSMNet(BaseModule):
         
         # Disparity regressions.
 
-        # self.disp_reg8  = disparityregression(self.maxdisp,16)
-        # self.disp_reg16 = disparityregression(self.maxdisp,16)
-        # self.disp_reg32 = disparityregression(self.maxdisp,32)
-        # self.disp_reg64 = disparityregression(self.maxdisp,64)
+        # self.disp_reg8  = disparityregression(self.maxDisp,16)
+        # self.disp_reg16 = disparityregression(self.maxDisp,16)
+        # self.disp_reg32 = disparityregression(self.maxDisp,32)
+        # self.disp_reg64 = disparityregression(self.maxDisp,64)
 
         if ( dispRegConfigs is None ):
             dispRegConfigs = [ ClsLinearCombination.get_default_init_args() for _ in range(4)]
@@ -107,16 +107,16 @@ class HSMNet(BaseModule):
     def initialize(self):
         super(HSMNet, self).initialize()
 
-    def feature_vol(self, refimg_fea, targetimg_fea, maxdisp, leftview=True):
+    def feature_vol(self, refimg_fea, targetimg_fea, maxDisp, leftview=True):
         '''
         diff feature volume
         '''
         width = refimg_fea.shape[-1]
-        # cost = Variable(torch.cuda.FloatTensor(refimg_fea.size()[0], refimg_fea.size()[1], maxdisp,  refimg_fea.size()[2],  refimg_fea.size()[3]).fill_(0.))
+        # cost = Variable(torch.cuda.FloatTensor(refimg_fea.size()[0], refimg_fea.size()[1], maxDisp,  refimg_fea.size()[2],  refimg_fea.size()[3]).fill_(0.))
         cost = torch.Tensor( 
-            ( refimg_fea.size()[0], refimg_fea.size()[1], maxdisp, refimg_fea.size()[2],  refimg_fea.size()[3] ),
+            ( refimg_fea.size()[0], refimg_fea.size()[1], maxDisp, refimg_fea.size()[2],  refimg_fea.size()[3] ),
             device=refimg_fea.device )
-        for i in range(maxdisp):
+        for i in range(maxDisp):
             feata = refimg_fea[:,:,:,i:width]
             featb = targetimg_fea[:,:,:,:width-i]
             # concat
@@ -127,16 +127,19 @@ class HSMNet(BaseModule):
         cost = cost.contiguous()
         return cost
 
-    def forward(self, left, right):
+    def forward(self, inputs):
+        left  = inputs['img0']
+        right = inputs['img1']
+
         nsample = left.shape[0]
         conv4,conv3,conv2,conv1  = self.featureExtractor(torch.cat([left,right],0))
         conv40,conv30,conv20,conv10  = conv4[:nsample], conv3[:nsample], conv2[:nsample], conv1[:nsample]
         conv41,conv31,conv21,conv11  = conv4[nsample:], conv3[nsample:], conv2[nsample:], conv1[nsample:]
 
-        feat6 = self.costVol( conv40, conv41, self.maxdisp//64 )
-        feat5 = self.costVol( conv30, conv31, self.maxdisp//32 )
-        feat4 = self.costVol( conv20, conv21, self.maxdisp//16 )
-        feat3 = self.costVol( conv10, conv11, self.maxdisp//8  )
+        feat6 = self.costVol( conv40, conv41, self.maxDisp//64 )
+        feat5 = self.costVol( conv30, conv31, self.maxDisp//32 )
+        feat4 = self.costVol( conv20, conv21, self.maxDisp//16 )
+        feat3 = self.costVol( conv10, conv11, self.maxDisp//8  )
 
         feat6_2x, cost6 = self.decoder6(feat6)
         feat5 = torch.cat((feat6_2x, feat5),dim=1)
@@ -175,7 +178,7 @@ class HSMNet(BaseModule):
             pred6 = self.disp_reg16(F.softmax(cost6,1))
             pred5 = self.disp_reg16(F.softmax(cost5,1))
             pred4 = self.disp_reg16(F.softmax(cost4,1))
-            stacked = [pred3,pred4,pred5,pred6]   
-            return stacked
+            stacked = [pred3.unsqueeze(1), pred4.unsqueeze(1), pred5.unsqueeze(1), pred6.unsqueeze(1)]   
+            return { TT.DISP_LIST: stacked }
         else:
-            return pred3
+            return { TT.DISP_LIST: [pred3.unsqueeze(1)] }
