@@ -422,7 +422,7 @@ class TTS(TrainTestBase):
 
             return loss.item(), metrics
         else:
-            mask0 = trueValueDict[TT.MAKS_LIST][0]
+            mask0 = trueValueDict[TT.MASK]
             with torch.no_grad():
                 loss = F.l1_loss( disp0[mask0], dispL[mask0] , reduction="mean" )
             return loss.item()

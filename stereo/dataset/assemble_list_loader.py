@@ -9,6 +9,7 @@ import os
 
 import torch
 import torch.utils.data as data
+import torchvision.transforms as transforms
 
 from .preprocessor import resize_bool_ocv, ToTensor_OCV_Dict
 from .readers import (

@@ -63,19 +63,17 @@ class CVDiff(CostVolume3D):
         self.mark_initialized()
 
     def forward(self, featL, featR, maxDisp):
-        W = featL.shape[-1]
+        B, C, H, W = featL.shape
 
-        cost = torch.zeros( 
-            ( featL.size()[0], featL.size()[1], maxDisp, featL.size()[2], featL.size()[3] ),
-            device=featL.device )
+        cost = torch.zeros( ( B, C, maxDisp, H, W ), device=featL.device )
 
         for i in range(maxDisp):
             featA = featL[ :, :, :, i:W   ]
             featB = featR[ :, :, :,  :W-i ]
             # concat
             if ( self.refIsRight ):
-                cost[:, :featL.size()[1], i, :,  :W-i] = torch.abs(featB-featA)
+                cost[:, :, i, :,  :W-i] = torch.abs(featB-featA)
             else:
-                cost[:, :featL.size()[1], i, :, i:   ] = torch.abs(featA-featB)
+                cost[:, :, i, :, i:   ] = torch.abs(featA-featB)
 
         return cost.contiguous()

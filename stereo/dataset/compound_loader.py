@@ -254,16 +254,20 @@ class CompoundLoader(object):
 
         drs = []   
         for fn in self.datasetJSONList:
-            if ( not os.path.isfile(fn) ):
-                raise Exception("{} not exist. ".format(fn))
+            try:
+                if ( not os.path.isfile(fn) ):
+                    raise Exception("{} not exist. ".format(fn))
 
-            # Read the json file.
-            jObj = read_json(fn)
-            if ( not 'flagTestInTraining' in jObj.keys() or not jObj['flagTestInTraining'] ):
-                continue
+                # Read the json file.
+                jObj = read_json(fn)
+                if ( not 'flagTestInTraining' in jObj.keys() or not jObj['flagTestInTraining'] ):
+                    continue
 
-            # Found a in-training test dataset.
-            drs.append( create_data_representation_from_json_obj(jObj) )
+                # Found a in-training test dataset.
+                drs.append( create_data_representation_from_json_obj(jObj) )
+            except Exception as exp:
+                print(f'Error occurs when parsing {fn}. ')
+                raise exp
         
         return drs
 
