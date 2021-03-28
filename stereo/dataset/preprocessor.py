@@ -653,9 +653,8 @@ class ColorJitter_Dict(Random_Dict):
             saturation=saturation, hue=hue )
 
     def augment(self, d):
-        with torch.no_grad():
-            d['img0'] = self.trans( d['img0'] )
-            d['img1'] = self.trans( d['img1'] )
+        d['img0'] = self.trans( d['img0'] )
+        d['img1'] = self.trans( d['img1'] )
         return d
 
 @register(PRE_PROCESSORS)
@@ -673,8 +672,7 @@ class AdjustGamma_Dict(Random_Dict):
         return transforms.functional.adjust_gamma( img, gamma )
 
     def augment(self, d):
-        with torch.no_grad():
-            d['img0'] = self.augment_single_img( d['img0'] )
-            d['img1'] = self.augment_single_img( d['img1'] )
+        d['img0'] = self.augment_single_img( d['img0'] )
+        d['img1'] = self.augment_single_img( d['img1'] )
         
         return d
