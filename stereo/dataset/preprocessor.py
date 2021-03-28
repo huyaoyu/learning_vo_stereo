@@ -21,6 +21,10 @@ from .register import ( PRE_PROCESSORS, register )
 imagenet_stats = {'mean': [0.485, 0.456, 0.406],
                    'std': [0.229, 0.224, 0.225]}
 
+imagenet_stats_bgr = {
+    'mean': [0.406, 0.456, 0.485], 
+    'std':  [0.225, 0.224, 0.229] }
+
 def resize_bool_ocv(img, newSize):
     '''
     Arguments: 
@@ -116,6 +120,20 @@ class NormalizeRGB_OCV_Dict(object):
         d["img0"] = self.normalizer(d["img0"])
         d["img1"] = self.normalizer(d["img1"])
 
+        return d
+
+@register(PRE_PROCESSORS)
+class NormalizeRGB_Dict(object):
+    def __init__(self, 
+        mean=imagenet_stats_bgr['mean'], 
+        std=imagenet_stats_bgr['std']):
+        super(NormalizeRGB_Dict, self).__init__()
+
+        self.normalizer = transforms.Normalize(mean, std, inplace=False)
+
+    def __call__(self, d):
+        d['img0'] = self.normalizer( d['img0'])
+        d['img1'] = self.normalizer( d['img1'])
         return d
 
 class NormalizeGray_OCV_Naive(object):
@@ -369,9 +387,9 @@ class NormalizeSelf_OCV(object):
 
         return x
 
-class Random_OCV_Dict(object):
+class Random_Dict(object):
     def __init__(self, flagRandom=False, randomLimit=0.5):
-        super(Random_OCV_Dict, self).__init__()
+        super(Random_Dict, self).__init__()
 
         self.flagRandom  = flagRandom
         self.randomLimit = randomLimit
@@ -396,8 +414,17 @@ class Random_OCV_Dict(object):
         else:
             return self.random() >= self.randomLimit
 
+    def __call__(self, d):
+        if ( self.flagRandom ):
+            if ( self.is_random() ):
+                return self.augment(d) # Defined in the inherited class.
+            else:
+                return d
+        else:
+            return self.augment(d)
+
 @register(PRE_PROCESSORS)
-class VerticalFlip_OCV_Dict(Random_OCV_Dict):
+class VerticalFlip_OCV_Dict(Random_Dict):
     def __init__(self, flagRandom=False, randomLimit=0.5):
         super(VerticalFlip_OCV_Dict, self).__init__(flagRandom, randomLimit)
 
@@ -424,17 +451,11 @@ class VerticalFlip_OCV_Dict(Random_OCV_Dict):
         
         return d
 
-    def __call__(self, d):
-        if ( self.flagRandom ):
-            if ( self.is_random() ):
-                return self.flip_dict(d)
-            else:
-                return d
-        else:
-            return self.flip_dict(d)
+    def augment(self, d):
+        return self.flip_dict(d)
 
 @register(PRE_PROCESSORS)
-class YDispAugmentation_OCV_Dict(Random_OCV_Dict):
+class YDispAugmentation_OCV_Dict(Random_Dict):
     '''
     This class is designed by referring to the work
     Hierarchical Deep Stereo Matching on High-resolution Images.
@@ -471,17 +492,8 @@ class YDispAugmentation_OCV_Dict(Random_OCV_Dict):
 
         return d
 
-    def __call__(self, d):
-        if ( self.flagRandom ):
-            if ( self.is_random() ):
-                return self.augment(d)
-            else:
-                return d
-        else:
-            return self.augment(d)
-
 @register(PRE_PROCESSORS)
-class RandomColor_OCV_Dict(Random_OCV_Dict):
+class RandomColor_OCV_Dict(Random_Dict):
     def __init__(self, hSpan=25, sSpan=50, vSpan=50, scale=0.2, flagRandom=False, randomLimit=0.5):
         super(RandomColor_OCV_Dict, self).__init__(flagRandom, randomLimit)
 
@@ -523,17 +535,8 @@ class RandomColor_OCV_Dict(Random_OCV_Dict):
 
         return d
 
-    def __call__(self, d):
-        if ( self.flagRandom ):
-            if ( self.is_random() ):
-                return self.augment(d)
-            else:
-                return d
-        else:
-            return self.augment(d)
-
 @register(PRE_PROCESSORS)
-class MeanDispBasedRandomScale_OCV_Dict(Random_OCV_Dict):
+class MeanDispBasedRandomScale_OCV_Dict(Random_Dict):
     def __init__(self, maxDisp, flagRandom=True, randomLimit=0.5):
         super(MeanDispBasedRandomScale_OCV_Dict, self).__init__(flagRandom, randomLimit)
 
@@ -544,7 +547,7 @@ class MeanDispBasedRandomScale_OCV_Dict(Random_OCV_Dict):
             dtype=np.float32 )
         self.maxDisp = maxDisp
 
-    def augment(self, d ):
+    def augment(self, d):
         # compute the mean disparity.
         disp0 = d['disp0']
         if ( 'valid0' in d ):
@@ -593,11 +596,85 @@ class MeanDispBasedRandomScale_OCV_Dict(Random_OCV_Dict):
 
         return d
 
-    def __call__(self, d):
-        if ( self.flagRandom ):
-            if ( self.is_random() ):
-                return self.augment(d)
-            else:
-                return d
-        else:
-            return self.augment(d)
+@register(PRE_PROCESSORS)
+class RecOcclusion_OCV_Dict(Random_Dict):
+    def __init__(self, recWidthLimits=(50, 150), occImg0=False, 
+        flagRandom=False, randomLimit=0.5):
+        '''Mask a rectangular region of in a single image.
+        Arguments:
+        recWidthLimits (2-element): The upper and lower limits of the rectangular region.
+        occImg0 (bool): Set True if mask img0 instead of img1.
+        '''
+        super(RecOcclusion_OCV_Dict, self).__init__( flagRandom, randomLimit)
+
+        assert( recWidthLimits[0] < recWidthLimits[1] ), \
+            f'Wrong recWidthLimits: {recWidthLimits}'
+        self.recWidthLimits = recWidthLimits
+        self.occImg0 = occImg0
+
+    def augment(self, d):
+        imgName = "img0" if self.occImg0 else "img1"
+        img = d[imgName]
+
+        # Random box shape.
+        h = int(self.random_in_limits( *self.recWidthLimits ))
+        w = int(self.random_in_limits( *self.recWidthLimits ))
+
+        # Allowed indices.
+        ah = img.shape[0] - h
+        aw = img.shape[1] - w
+
+        if ( ah < 0 ):
+            raise Exception("img.shape[0] < h. img.shape[0] = {}, h = {}. ".format( img.shape[0], h ))
+        if ( aw < 0 ):
+            raise Exception("img.shape[1] < w. img.shape[1] = {}, w = {}. ".format( img.shape[1], w ))
+
+        # Get two random numbers.
+        ah = ah + 1
+        aw = aw + 1
+
+        ch = torch.randint(0, ah, (1, )).item()
+        cw = torch.randint(0, aw, (1, )).item()
+
+        meanRec = np.mean( img[ ch:ch+h, cw:cw+w], axis=(0, 1) )
+        d[imgName][ ch:ch+h, cw:cw+w, ...] = meanRec[np.newaxis, np.newaxis]
+
+        return d
+
+@register(PRE_PROCESSORS)
+class ColorJitter_Dict(Random_Dict):
+    def __init__(self, 
+        brightness=(1, 1), contrast=(1, 1), saturation=(1, 1), hue=(0, 0),
+        flagRandom=False, randomLimit=0.5 ):
+        super(ColorJitter_Dict, self).__init__( flagRandom, randomLimit )
+
+        self.trans = transforms.ColorJitter( 
+            brightness=brightness, contrast=contrast,
+            saturation=saturation, hue=hue )
+
+    def augment(self, d):
+        with torch.no_grad():
+            d['img0'] = self.trans( d['img0'] )
+            d['img1'] = self.trans( d['img1'] )
+        return d
+
+@register(PRE_PROCESSORS)
+class AdjustGamma_Dict(Random_Dict):
+    def __init__(self, gammaLimits=(1, 1), 
+        flagRandom=False, randomLimit=0.5 ):
+        super( AdjustGamma_Dict, self).__init__(flagRandom, randomLimit)
+
+        assert( gammaLimits[0] <= gammaLimits[1] ), \
+            f'Wrong gammaLimits: {gammaLimits}'
+        self.gammaLimits = gammaLimits
+
+    def augment_single_img(self, img):
+        gamma = self.random_in_limits( *self.gammaLimits )
+        return transforms.functional.adjust_gamma( img, gamma )
+
+    def augment(self, d):
+        with torch.no_grad():
+            d['img0'] = self.augment_single_img( d['img0'] )
+            d['img1'] = self.augment_single_img( d['img1'] )
+        
+        return d

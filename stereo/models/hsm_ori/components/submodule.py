@@ -137,7 +137,7 @@ class decoderBlock(BaseModule):
                 kernel_size = (int(d/pool_size), int(h/pool_size), int(w/pool_size))
                 out = F.avg_pool3d(fvl, kernel_size, stride=kernel_size)       
                 out = self.pool_convs[i](out)
-                out = F.upsample(out, size=(d,h,w), 
+                out = F.interpolate(out, size=(d,h,w), 
                     mode='trilinear', align_corners=self.flagAlignCorners)
                 fvl_out = fvl_out + 0.25*out
             fvl = F.relu(fvl_out/2.,inplace=self.flagReLUInplace)

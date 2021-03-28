@@ -165,7 +165,7 @@ class pyramidPooling(BaseModule):
                 #out = F.adaptive_avg_pool2d(x, output_size=(pool_size, pool_size))
                 if self.model_name != 'icnet':
                     out = module(out)
-                out = F.upsample(out, size=(h,w), 
+                out = F.interpolate(out, size=(h,w), 
                     mode='bilinear', align_corners=self.flagAlignCorners)
                 output_slices.append(out)
 
@@ -176,7 +176,7 @@ class pyramidPooling(BaseModule):
             for i, module in enumerate(self.path_module_list):
                 out = F.avg_pool2d(x, k_sizes[i], stride=strides[i], padding=0)
                 out = module(out)
-                out = F.upsample(out, size=(h,w), 
+                out = F.interpolate(out, size=(h,w), 
                     mode='bilinear', align_corners=self.flagAlignCorners)
                 pp_sum = pp_sum + 0.25*out
             pp_sum = F.relu(pp_sum/2.,inplace=self.flagReLUInplace)
