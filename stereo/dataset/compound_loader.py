@@ -81,7 +81,10 @@ class CompoundLoader(object):
 
         self.flagTest = False
 
+        # datasetJSONList is a list of dicts.
+        # Every element has a structure of { 'description':, 'repeat': }
         self.datasetJSONList  = datasetJSONList
+
         self.batchSize        = batchSize
         self.shuffle          = shuffle
         self.numWorkers       = numWorkers
@@ -119,7 +122,10 @@ class CompoundLoader(object):
 
         # import ipdb; ipdb.set_trace()
         
-        for fn in self.datasetJSONList:
+        for datasetDict in self.datasetJSONList:
+            fn = datasetDict['description']
+            repeat = datasetDict['repeat']
+
             if ( not os.path.isfile(fn) ):
                 raise Exception("{} not exist. ".format(fn))
 
@@ -191,7 +197,7 @@ class CompoundLoader(object):
                     # else:
                     #     datasetTrain.flagUseOcc = False
 
-                    trainDatasets = trainDatasets + [datasetTrain]
+                    trainDatasets = trainDatasets + [ datasetTrain ] * repeat
 
                 # Get the file lists for a testing dataset.
                 if ( not DT_JSON_ITT in jObj or not jObj[DT_JSON_ITT] ):
@@ -253,7 +259,8 @@ class CompoundLoader(object):
         print('Try to find and in-training test datasets. ')
 
         drs = []   
-        for fn in self.datasetJSONList:
+        for datasetDict in self.datasetJSONList:
+            fn = datasetDict['description']
             try:
                 if ( not os.path.isfile(fn) ):
                     raise Exception("{} not exist. ".format(fn))

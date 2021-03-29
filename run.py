@@ -28,6 +28,12 @@ def print_delimeter(c = "=", n = 20, title = "", leading = "\n", ending = "\n"):
 
     print("%s%s%s" % (leading, s, ending))
 
+def read_json(fn):
+    assert( os.path.isfile(fn) ), f'{fn} does not exist. '
+    with open(fn, 'r') as fp:
+        jObj = json.load(fp)
+    return jObj
+
 # Template for custom WorkFlow object.
 class MyWF(TorchFlow.TorchFlow):
     def __init__(self, workingDir, prefix = "", suffix = "", disableStreamLogger=False):
@@ -86,10 +92,10 @@ def get_average_epe_by_pixel_number(testMetricList):
     return allEPE.sum() / testMetricList[:, 6].sum()
 
 def main(args, sc):
-    dataJSONList = arg_utils.read_string_list(args.data_json_list)
+    dataJSONListDict = read_json( args.data_json_list )
 
     # Update sc.
-    sc['tt']['dataloader']['datasetJSONList'] = dataJSONList
+    sc['tt']['dataloader']['datasetJSONList'] = dataJSONListDict['datasets']
 
     print_delimeter(title = "Before WorkFlow initialization." )
 
