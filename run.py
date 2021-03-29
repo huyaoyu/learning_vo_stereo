@@ -203,9 +203,6 @@ def main(args, sc):
             for batchIdx, dataDictTest in enumerate( tt.dataloader.loaderTest ):
                 loss, metrics = wf.test( dataDictTest, batchIdx, args.test_flag_save )
 
-                if ( True == tt.flagInspect ):
-                    wf.logger.warning("Inspection enabled.")
-
                 wf.logger.info("Test %d, lossTest = %f." % ( batchIdx, loss ))
 
                 testLossList.append( [ dataDictTest["img0"].size()[0], loss, *(np.mean(metrics, axis=0).tolist()) ] )

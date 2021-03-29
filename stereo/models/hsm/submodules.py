@@ -138,21 +138,9 @@ class decoderBlock(BaseModule):
                 fvl_out = fvl_out + 0.25*out
             fvl = F.relu(fvl_out/2.,inplace=self.flagReLUInplace)
 
-       # #TODO cost aggregation
-       # costl = self.classify(fvl)
-       # if self.up:
-       #     fvl = self.up(fvl)
-        if self.training:
-            # classification
-            costl = self.classify(fvl)
-            if self.up:
-                fvl = self.up(fvl)
-        else:
-            # classification
-            if self.up:
-                fvl = self.up(fvl)
-                costl=fvl
-            else:
-                costl = self.classify(fvl)
+        # classification
+        costl = self.classify(fvl)
+        if self.up:
+            fvl = self.up(fvl)
 
-        return fvl,costl.squeeze(1)
+        return fvl, costl

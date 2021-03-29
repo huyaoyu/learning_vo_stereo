@@ -57,11 +57,11 @@ if __name__ == '__main__':
             dict(
                 type='ClsLinearCombination',
                 maxDisp=maxDisp,
-                divisor=32 ),
+                divisor=16 ),
             dict(
                 type='ClsLinearCombination',
                 maxDisp=maxDisp,
-                divisor=64 ),
+                divisor=16 ),
             ] )
 
     # Make a HSMNet object.

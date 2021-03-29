@@ -10,7 +10,6 @@ conf=dict(
         model=dict(
             type='HSMNet',
             maxDisp=DISP_MAX,
-            level=1,
             featExtConfig=dict(
                 type='UNet',
                 initialChannels=32, freeze=False),

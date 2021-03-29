@@ -30,6 +30,8 @@ from stereo.learning_rate_scheduler.register import ( LR_SCHEDULERS, make_schedu
 from stereo.models.supervision.true_value import TT
 from stereo.models.supervision.basic_losses import LT
 from stereo.metric.register import( METRICS, make_metric )
+from stereo.visualization import tensor_handles
+from stereo.visualization.test_result_drawing_tools import compose_results
 
 from .tt_base import TrainTestBase
 
@@ -297,51 +299,32 @@ class TTS(TrainTestBase):
 
         self.frame.logger.info("E%d, L%d: %s" % (epochCount, self.countTrain, self.frame.get_log_str()))
 
-    def draw_with_occlusion(self, identifier, \
-            imgL, imgR, \
-            trueD, predD, trueDList, predDList, \
-            trueOMList, predOMList ):
-        batchSize = predD.size()[0]
+    def draw_test_results(self, identifier,
+            imgL, imgR,
+            trueDList, predDList ):
+        batchSize = predDList[0].shape[0]
         
-        for i in range(batchSize):
-            img0 = imgL[i, :, :, :].permute((1,2,0)).cpu().numpy()
-            img0 = img0 - img0.min()
-            img0 = img0 / img0.max() * 255
-            img0 = img0.astype(np.uint8)
-            img1 = imgR[i, :, :, :].permute((1,2,0)).cpu().numpy()
-            img1 = img1 - img1.min()
-            img1 = img1 / img1.max() * 255
-            img1 = img1.astype(np.uint8)
+        img0List = tensor_handles.batch_img_2_array_list(imgL)
+        img1List = tensor_handles.batch_img_2_array_list(imgR)
 
-            trueDisp = trueD[i, 0, :, :].detach().cpu().numpy()
-            predDisp = predD[i, 0, :, :].detach().cpu().numpy()
+        for i in range(batchSize):
+            img0 = tensor_handles.simple_array_2_rgb(img0List[i])
+            img1 = tensor_handles.simple_array_2_rgb(img1List[i])
 
             trueDispList = []
             predDispList = []
-            trueOccMaskList = []
-            predOccMaskList = []
             
             for j in range( len(trueDList) ):
                 trueDispList.append( trueDList[j][i, 0, :, :].detach().cpu().numpy() )
                 predDispList.append( predDList[j][i, 0, :, :].detach().cpu().numpy() )
 
-                if ( trueOMList[j] is not None ):
-                    trueOccMaskList.append( trueOMList[j][i, :, :].detach().cpu().numpy() )
-                else:
-                    trueOccMaskList.append( None )
-
-                if ( predOMList[j] is not None ):
-                    predOccMaskList.append( predOMList[j][i, :, :].detach().cpu().numpy() )
-                else:
-                    predOccMaskList.append( None )
-
-            canvas = compose_with_occlusion( img0, img1, trueDisp, predDisp, \
-                trueDispList, predDispList, trueOccMaskList, predOccMaskList )
+            canvas = compose_results( 
+                img0, img1, trueDispList, predDispList )
 
             figName = "%s_%02d" % (identifier, i)
             figName = self.frame.compose_file_name(figName, "png", subFolder=self.testResultSubfolder)
 
-            cv2.imwrite(figName, canvas, [cv2.IMWRITE_PNG_COMPRESSION, 5])
+            cv2.imwrite(figName, canvas)
 
     def save_test_disp(self, identifier, pred):
         batchSize = pred.size()[0]
@@ -381,7 +364,8 @@ class TTS(TrainTestBase):
         with torch.no_grad():
             outputs = self.model( { 'img0':imgL, 'img1':imgR } )
         
-        disp0 = outputs[TT.DISP_LIST][0]
+        predDispList = outputs[TT.DISP_LIST]
+        disp0 = predDispList[0]
             
         if ( not flagInTrainingTest ):
             with torch.no_grad():
@@ -406,12 +390,10 @@ class TTS(TrainTestBase):
                 identifier = "test_%d" % (count - 1)
                 self.save_test_disp( identifier, disp0 )
 
-                # self.draw_with_occlusion( identifier, imgL, imgR, \
-                #     dispL, disp0, \
-                #     [ dispL, dispL1, dispLS ], \
-                #     [ upDisp1, disp1, dispS  ], \
-                #     [ occLFixedSq, occLSMSq, None ], \
-                #     predictedOccList )
+                self.draw_test_results( identifier, 
+                    imgL, imgR, \
+                    [ dispL ] * len(predDispList), \
+                    predDispList )
 
             # AccumulatedValue objects.
             self.frame.AV["LT"].push_back(loss.item(), self.countTest)
