@@ -34,10 +34,6 @@ parser.add_argument("--multi-gpus", action="store_true", default=False, \
 parser.add_argument("--cpu", action="store_true", default=False, \
     help="Set this flag to use cpu only. This will overwrite --multi-gpus flag.")
 
-# Optimizer.
-parser.add_argument("--lr", type=float, default=0.0001, \
-    help="Learning rate.")
-
 # Data loader.
 parser.add_argument("--data-json-list", type=str, default="", \
     help="The file contains a list of dataset json files. Cannot used together with --data-root-dir.")

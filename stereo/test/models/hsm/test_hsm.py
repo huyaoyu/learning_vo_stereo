@@ -37,8 +37,7 @@ if __name__ == '__main__':
     d = dict(
         type='HSMNet',
         maxdisp=maxDisp, 
-        clean=-1, 
-        level=1,
+        clean=-1,
         featExtConfig=dict(
             type='UNet',
             initialChannels=32 ),
