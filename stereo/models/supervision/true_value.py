@@ -21,6 +21,7 @@ class TT(object):
     DISP_LIST = 'dispLs'
     MAKS_LIST = 'maskLs'
     OCC_LIST  = 'occLs'
+    UNCT_LIST = 'uncertaintyLs'
 
 class TrueValueGenerator(object):
     def __init__(self, trueDispMax, flagIntNearest=False):

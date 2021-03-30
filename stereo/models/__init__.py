@@ -11,6 +11,7 @@ from stereo.models import cost
 from stereo.models import disparity_regression
 from stereo.models import feature_extractor
 from stereo.models import supervision
+from stereo.models import uncertainty
 
 # from stereo.models import hsm_ori
 from stereo.models import hsm

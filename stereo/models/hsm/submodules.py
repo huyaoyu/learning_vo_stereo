@@ -75,7 +75,9 @@ def sepConv3d(in_planes, out_planes, kernel_size, stride, pad,bias=False):
                          nn.BatchNorm3d(out_planes))
 
 class decoderBlock(BaseModule):
-    def __init__(self, nconvs, inchannelF,channelF,stride=(1,1,1),up=False, nstride=1,pool=False):
+    def __init__(self, nconvs, inchannelF, channelF, 
+        stride=(1,1,1), up=False, nstride=1, pool=False, 
+        uncertainty=False):
         super(decoderBlock, self).__init__()
 
         self.flagAlignCorners = GLOBAL.torch_align_corners()
@@ -88,9 +90,15 @@ class decoderBlock(BaseModule):
             self.convs.append(sepConv3dBlock(channelF,channelF, stride=stride[i]))
         self.convs = nn.Sequential(*self.convs)
 
-        self.classify = nn.Sequential(sepConv3d(channelF, channelF, 3, (1,1,1), 1),
-                                       nn.ReLU(inplace=self.flagReLUInplace),
-                                       sepConv3d(channelF, 1, 3, (1,1,1),1,bias=True))
+        classifyModules = [ sepConv3d(channelF, channelF, 3, (1,1,1), 1),
+                            nn.ReLU(inplace=self.flagReLUInplace) ]
+        
+        if ( uncertainty ):
+            classifyModules.append( sepConv3d(channelF, 2, 3, (1,1,1), 1, bias=True) )
+        else:
+            classifyModules.append( sepConv3d(channelF, 1, 3, (1,1,1), 1, bias=True) )
+        
+        self.classify = nn.Sequential(*classifyModules)
 
         self.up = False
         if up:

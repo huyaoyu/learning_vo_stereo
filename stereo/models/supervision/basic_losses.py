@@ -127,6 +127,79 @@ self.nWeights = {self.nWeights}, len(dispTLs) = {len(dispTLs)}'
             LT.LOSS_LIST: losses }
 
 @register(LOSS_CMP)
+class MultiScaleLossWithEpistemicUncertainty(ListLosses):
+    def __init__(self, 
+        weights=None,
+        flagMaskedLoss=True, 
+        flagIntNearest=False):
+        super(MultiScaleLossWithEpistemicUncertainty, self).__init__(
+            weights=weights, 
+            flagMaskedLoss=flagMaskedLoss, 
+            flagIntNearest=flagIntNearest )
+
+    def compute_masked_disp_loss(self, dispTLs, maskLs, dispPLs, logSigSquLs):
+        losses = []
+
+        for dispT, mask, dispP, lss in zip( dispTLs, maskLs, dispPLs, logSigSquLs ):
+            if ( dispP is None ):
+                losses.append(0)
+            else:
+                expLSS         = torch.exp( -lss )
+                augmentedDispP = expLSS * dispP
+                augmentedDispT = expLSS * dispT
+
+                losses.append(
+                    F.smooth_l1_loss( 
+                        augmentedDispP[mask], 
+                        augmentedDispT[mask], 
+                        reduction='mean' ) 
+                    + torch.mean( lss[mask] ) )
+        
+        return losses
+
+    def compute_disp_loss(self, dispTLs, dispPLs, logSigSquLs):
+        losses = []
+        for dispT, dispP, lss in zip( dispTLs, dispPLs, logSigSquLs ):
+            if ( dispP is None ):
+                losses.append(0)
+            else:
+                expLSS = torch.exp( -lss )
+
+                losses.append(
+                    F.smooth_l1_loss( 
+                        expLSS * dispP, 
+                        expLSS * dispT, 
+                        reduction='mean' )
+                    + torch.mean( lss ) )
+
+        return losses
+
+    def compute_loss(self, trueValueDict, predValueDict):
+        dispTLs     = trueValueDict[TT.DISP_LIST]
+        dispPLs     = predValueDict[TT.DISP_LIST]
+        maskLs      = trueValueDict[TT.MAKS_LIST]
+        logSigSquLs = predValueDict[TT.UNCT_LIST]
+
+        assert( len(dispTLs) == len(dispPLs) == len(maskLs) == len(logSigSquLs) ), \
+            f'The number of the true and predicted values should be equal. \
+len(dispTLs) = {len(dispTLs)}, len(dispPLs) = {len(dispPLs)}, len(maskLs) = {len(maskLs)}, len(logSigSquLs) = {len(logSigSquLs)}'
+
+        assert( self.nWeights == len(dispTLs) ), \
+            f'The number of the weights must be equal to the number of true values. \
+self.nWeights = {self.nWeights}, len(dispTLs) = {len(dispTLs)}'
+
+        if ( self.flagMaskedLoss ):
+            losses = self.compute_masked_disp_loss( dispTLs, maskLs, dispPLs, logSigSquLs )
+        else:
+            losses = self.compute_disp_loss( dispTLs, dispPLs, logSigSquLs )
+
+        loss = self.weight_losses(losses)
+
+        return { 
+            LT.LOSS: loss,
+            LT.LOSS_LIST: losses }
+
+@register(LOSS_CMP)
 class OriScaleLoss(ListLosses):
     def __init__(self, 
         weights=None,
@@ -178,7 +251,7 @@ class OriScaleLoss(ListLosses):
                 dp = self.scale_tensor_if_not_same( 
                     dispT, dispP, flagScaleValue=True )
                 losses.append(
-                    F.smooth_l1_loss( dispP, dispT, reduction='mean' ) )
+                    F.smooth_l1_loss( dp, dispT, reduction='mean' ) )
         
         return losses
 
@@ -191,6 +264,79 @@ class OriScaleLoss(ListLosses):
             losses = self.compute_masked_disp_loss( dispTL, maskL, dispPLs )
         else:
             losses = self.compute_disp_loss( dispTL, dispPLs )
+        
+        loss = self.weight_losses(losses)
+
+        return { 
+            LT.LOSS: loss,
+            LT.LOSS_LIST: losses }
+
+@register(LOSS_CMP)
+class OriScaleLossWithEpistemicUncertainty(OriScaleLoss):
+    def __init__(self, 
+        weights=None,
+        flagMaskedLoss=True, 
+        flagIntNearest=False):
+        super(OriScaleLossWithEpistemicUncertainty, self).__init__(
+            weights=weights,
+            flagMaskedLoss=flagMaskedLoss, 
+            flagIntNearest=flagIntNearest )
+
+    def compute_masked_disp_loss(self, dispT, mask, dispPLs, logSigSquLs):
+        losses = []
+
+        for dispP, lss in zip( dispPLs, logSigSquLs ):
+            if ( dispP is None ):
+                losses.append(0)
+            else:
+                dp = self.scale_tensor_if_not_same( 
+                    dispT, dispP, flagScaleValue=True )
+                lss = self.scale_tensor_if_not_same(
+                    dispT, lss, flagScaleValue=False )
+
+                expLSS = torch.exp(-lss)
+                augmentedDispP = expLSS * dp
+                augmentedDispT = expLSS * dispT
+                
+                losses.append(
+                    F.smooth_l1_loss( 
+                        augmentedDispP[mask], 
+                        augmentedDispT[mask], 
+                        reduction='mean' )
+                    + torch.mean( lss[mask] ) )
+        
+        return losses
+
+    def compute_disp_loss(self, dispT, dispPLs, logSigSquLs):
+        losses = []
+
+        for dispP, lss in zip( dispPLs, logSigSquLs ):
+            if ( dispP is None ):
+                losses.append(0)
+            else:
+                dp = self.scale_tensor_if_not_same( 
+                    dispT, dispP, flagScaleValue=True )
+                lss = self.scale_tensor_if_not_same(
+                    dispT, lss, flagScaleValue=False )
+
+                expLSS = torch.exp( -lss )
+                
+                losses.append(
+                    F.smooth_l1_loss( expLSS * dp, expLSS * dispT, reduction='mean' )
+                    + torch.mean( lss ) )
+        
+        return losses
+
+    def compute_loss(self, trueValueDict, predValueDict):    
+        dispTL      = trueValueDict[TT.DISP]
+        dispPLs     = predValueDict[TT.DISP_LIST]
+        maskL       = trueValueDict[TT.MASK]
+        logSigSquLs = predValueDict[TT.UNCT_LIST]
+
+        if ( self.flagMaskedLoss ):
+            losses = self.compute_masked_disp_loss( dispTL, maskL, dispPLs, logSigSquLs )
+        else:
+            losses = self.compute_disp_loss( dispTL, dispPLs, logSigSquLs )
         
         loss = self.weight_losses(losses)
 

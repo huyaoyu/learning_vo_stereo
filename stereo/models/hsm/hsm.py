@@ -20,6 +20,7 @@ from stereo.models.cost.cost_volume import CVDiff
 from stereo.models.disparity_regression.cls_linear_combination import ClsLinearCombination
 from stereo.models.feature_extractor.unet import UNet
 from stereo.models.supervision.true_value import TT
+from stereo.models.uncertainty.classified_cost_volume_epistemic import ClassifiedCostVolumeEpistemic
 from .submodules import *
 
 from stereo.models.register import (
@@ -32,6 +33,7 @@ class HSMNet(BaseModule):
         featExtConfig=None, 
         costVolConfig=None,
         dispRegConfigs=None,
+        uncertainty=False,
         freeze=False):
 
         super(HSMNet, self).__init__(freeze=freeze)
@@ -57,18 +59,20 @@ class HSMNet(BaseModule):
         self.append_init_impl(self.costVol)
 
         # block 4
-        self.decoder6 = decoderBlock(6,32,32,up=True, pool=True)
+        self.decoder6 = decoderBlock(6,32,32,up=True, pool=True, uncertainty=uncertainty)
         self.append_init_impl(self.decoder6)
 
-        self.decoder5 = decoderBlock(6,32,32,up=True, pool=True)
+        self.decoder5 = decoderBlock(6,32,32,up=True, pool=True, uncertainty=uncertainty)
         self.append_init_impl(self.decoder5)
 
-        self.decoder4 = decoderBlock(6,32,32, up=True)
+        self.decoder4 = decoderBlock(6,32,32, up=True, uncertainty=uncertainty)
         self.append_init_impl(self.decoder4)
 
-        self.decoder3 = decoderBlock(5,32,32, stride=(2,1,1),up=False, nstride=1)
+        self.decoder3 = decoderBlock(5,32,32, stride=(2,1,1),up=False, nstride=1, uncertainty=uncertainty)
         self.append_init_impl(self.decoder3)
         
+        self.uncertainty = uncertainty
+
         # Disparity regressions.
 
         # self.disp_reg3 = disparityregression(self.maxDisp,16)
@@ -91,6 +95,9 @@ class HSMNet(BaseModule):
         self.append_init_impl(self.disp_reg4)
         self.append_init_impl(self.disp_reg5)
         self.append_init_impl(self.disp_reg6)
+
+        self.uncertaintyComputer = ClassifiedCostVolumeEpistemic() \
+            if self.uncertainty else None
 
         # Must be called at the end of __init__().
         self.update_freeze()
@@ -145,25 +152,40 @@ class HSMNet(BaseModule):
         feat3_2x, cost3 = self.decoder3(feat3) # 32
 
         cost3 = F.interpolate(cost3, 
-            [ self.disp_reg3.disp.shape[1], left.shape[2],left.shape[3] ], 
-            mode='trilinear', align_corners=self.flagAlignCorners).squeeze(1)
+            [ self.disp_reg3.disp.shape[1], left.shape[2], left.shape[3] ], 
+            mode='trilinear', align_corners=self.flagAlignCorners)
 
-        pred3 = self.disp_reg3( F.softmax(cost3, 1) )
+        if ( self.uncertainty ):
+            cost3, uChannels3 = torch.split( cost3, 1, dim=1 )
+            logSigmaSqured3 = self.uncertaintyComputer( uChannels3.squeeze(1), left.shape[2:4] )
+
+        pred3 = self.disp_reg3( F.softmax(cost3.squeeze(1), 1) )
 
         if ( not flagDeploy ):
             cost6 = F.interpolate(cost6, 
                 [ self.disp_reg6.disp.shape[1], left.shape[2], left.shape[3] ], 
-                mode='trilinear', align_corners=self.flagAlignCorners).squeeze(1)
+                mode='trilinear', align_corners=self.flagAlignCorners)
             cost5 = F.interpolate(cost5, 
                 [ self.disp_reg5.disp.shape[1], left.shape[2], left.shape[3] ], 
-                mode='trilinear', align_corners=self.flagAlignCorners).squeeze(1)
+                mode='trilinear', align_corners=self.flagAlignCorners)
             cost4 = F.interpolate(cost4, 
                 [ self.disp_reg4.disp.shape[1], left.shape[2], left.shape[3] ], 
-                mode='trilinear', align_corners=self.flagAlignCorners).squeeze(1)
+                mode='trilinear', align_corners=self.flagAlignCorners)
 
-            pred6 = self.disp_reg6( F.softmax(cost6, 1) )
-            pred5 = self.disp_reg5( F.softmax(cost5, 1) )
-            pred4 = self.disp_reg4( F.softmax(cost4, 1) )
+            if ( self.uncertainty ):
+                cost6, uChannels6 = torch.split( cost6, 1, dim=1 )
+                logSigmaSqured6 = self.uncertaintyComputer( uChannels6.squeeze(1), left.shape[2:4] )
+                cost5, uChannels5 = torch.split( cost5, 1, dim=1 )
+                logSigmaSqured5 = self.uncertaintyComputer( uChannels5.squeeze(1), left.shape[2:4] )
+                cost4, uChannels4 = torch.split( cost4, 1, dim=1 )
+                logSigmaSqured4 = self.uncertaintyComputer( uChannels4.squeeze(1), left.shape[2:4] )
+
+                uncertainties = [ 
+                    logSigmaSqured3, logSigmaSqured4, logSigmaSqured5, logSigmaSqured6 ]
+
+            pred6 = self.disp_reg6( F.softmax(cost6.squeeze(1), 1) )
+            pred5 = self.disp_reg5( F.softmax(cost5.squeeze(1), 1) )
+            pred4 = self.disp_reg4( F.softmax(cost4.squeeze(1), 1) )
 
             stacked = [ 
                 pred3.unsqueeze(1), 
@@ -171,6 +193,13 @@ class HSMNet(BaseModule):
                 pred5.unsqueeze(1), 
                 pred6.unsqueeze(1)]
         else:
+            if ( self.uncertainty ):
+                uncertainties = [ logSigmaSqured3 ]
             stacked = [ pred3.unsqueeze(1) ]
         
-        return { TT.DISP_LIST: stacked }
+        res = { TT.DISP_LIST: stacked }
+
+        if ( self.uncertainty ):
+            res[TT.UNCT_LIST] = uncertainties
+
+        return res
