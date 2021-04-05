@@ -122,7 +122,7 @@ class SpatialPyramidPooling(BaseModule):
 class SPP2D(SpatialPyramidPooling):
     def __init__(self, inCh, levels, 
         maxKFactor=0.5, lastActivation=None, flagNearest=False):
-        super(SpatialPyramidPooling, self).__init__( 
+        super(SPP2D, self).__init__( 
             inCh, levels, maxKFactor, lastActivation, flagNearest )
 
     # Override.
@@ -131,7 +131,7 @@ class SPP2D(SpatialPyramidPooling):
         for i in range(self.levels):
             poolingConvs.append( 
                 cm.Conv_W(self.inCh, self.inCh, k=1, 
-                normLayer=cm.FeatureNormalization(inCh),
+                normLayer=cm.FeatureNormalization(self.inCh),
                 activation=nn.ReLU(inplace=self.flagReLUInplace) ) )
         return poolingConvs
 
@@ -150,7 +150,7 @@ class SPP2D(SpatialPyramidPooling):
 class SPP3D(SpatialPyramidPooling):
     def __init__(self, inCh, levels, 
         maxKFactor=0.5, lastActivation=None, flagNearest=False):
-        super(SpatialPyramidPooling, self).__init__( 
+        super(SPP3D, self).__init__( 
             inCh, levels, maxKFactor, lastActivation, flagNearest )
 
     # Override.
@@ -159,7 +159,7 @@ class SPP3D(SpatialPyramidPooling):
         for i in range(self.levels):
             poolingConvs.append( 
                 cm3d.Conv3D_W(self.inCh, self.inCh, k=1, 
-                normLayer=cm3d.FeatureNorm3D(inCh),
+                normLayer=cm3d.FeatureNorm3D(self.inCh),
                 activation=nn.ReLU(inplace=self.flagReLUInplace) ) )
         return poolingConvs
 

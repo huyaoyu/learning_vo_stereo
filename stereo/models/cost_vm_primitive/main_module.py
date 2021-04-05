@@ -68,9 +68,13 @@ class CostVolPrimitive(BaseModule):
         for i in range( nLevels ):
             flagUpsample = True if i != 0 else False
             flagPool     = True if i == nLevels - 1 else False
-            regulator = sm.DecoderBlock(6, 32, 32, outCh=costRegulatorOutCh, up=flagUpsample, pool=flagPool)
+            regulator = sm.DecoderBlock(
+                6, 32, 32, 
+                outCh=costRegulatorOutCh, 
+                outputUpSampledFeat=flagUpsample, 
+                pooling=flagPool)
             self.CostRegulatorList.append( regulator )
-            self.append_init_imp( regulator )
+            self.append_init_impl( regulator )
 
         # Disparity regressions.
         if ( dispRegConfigs is None ):
@@ -142,7 +146,7 @@ class CostVolPrimitive(BaseModule):
 
         # Prediction.
         pred0, logSigmaSqured0 = self.predict_disp( 
-            left.shape[2:4], costList[0], dispRegList[0] )
+            left.shape[2:4], costList[0], self.dispRegList[0] )
         preds = [ pred0 ]
         uncertainties = [ logSigmaSqured0 ]
 
@@ -150,7 +154,7 @@ class CostVolPrimitive(BaseModule):
         if ( not flagDeploy ):
             for i in range( 1, len(levels) ):
                 pred, logSigmaSqured = self.predict_disp(
-                    left.shape[2:4], costList[i], dispRegList[i] )
+                    left.shape[2:4], costList[i], self.dispRegList[i] )
 
                 preds.append( pred )
                 uncertainties.append( logSigmaSqured )

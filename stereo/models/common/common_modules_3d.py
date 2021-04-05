@@ -46,7 +46,7 @@ class Conv3D_W(BaseModule):
     def __init__(self, inCh, outCh, 
         k=3, d=1, 
         normLayer=None, activation=None, bias=False):
-        super(Conv3d, self).__init__()
+        super(Conv3D_W, self).__init__()
 
         p = int( k // 2 * d )
 

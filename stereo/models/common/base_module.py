@@ -65,3 +65,12 @@ class BaseModule(nn.Module):
             m.initialize()
 
         self.mark_initialized()
+
+class WrappedModule(BaseModule):
+    def __init__(self, m, freeze=False):
+        super(WrappedModule, self).__init__(freeze=freeze)
+
+        self.model = m
+
+    def forward(self, x):
+        return self.model(x)

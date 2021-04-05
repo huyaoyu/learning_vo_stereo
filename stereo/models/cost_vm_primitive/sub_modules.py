@@ -15,7 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # Local packages.
-from stereo.models.common.base_module import BaseModule
+from stereo.models.common.base_module import ( BaseModule, WrappedModule )
 from stereo.models.common import common_modules as cm
 from stereo.models.common import common_modules_3d as cm3d
 from stereo.models.common.pooling import SPP3D
@@ -96,30 +96,32 @@ class DecoderBlock(BaseModule):
         convs = [ SepConv3DBlock( inCh, interCh, stride=strideList[0] ) ]
         for i in range(1, nConvs):
             convs.append( SepConv3DBlock( interCh, interCh, stride=strideList[i] ) )
-        self.entryConvs = nn.Sequential(*convs)
+        self.entryConvs = WrappedModule( nn.Sequential(*convs) )
         self.append_init_here( self.entryConvs )
 
         # Classification layer.
-        self.classify = nn.Sequential(
-            cm3d.Conv3D_W( interCh, interCh, 
-                normLayer=cm3d.FeatureNorm3D(interCh), 
-                activation=nn.ReLU(inplace=self.flagReLUInplace) ), 
-            cm3d.Conv3D_W(interCh, outCh, bias=True) )
+        self.classify = WrappedModule(
+            nn.Sequential(
+                cm3d.Conv3D_W( interCh, interCh, 
+                    normLayer=cm3d.FeatureNorm3D(interCh), 
+                    activation=nn.ReLU(inplace=self.flagReLUInplace) ), 
+                cm3d.Conv3D_W(interCh, outCh, bias=True) ) )
         self.append_init_here(self.classify)
 
         # Feature up-sample setting.
         self.featUpSampler = None
         if outputUpSampledFeat:
-            self.featUpSampler = nn.Sequential(
-                cm3d.Interpolate3D_FixedScale(2),
-                cm3d.Conv3D_W( interCh, interCh//2, 
-                    normLayer=cm3d.FeatureNorm3D(interCh//2), 
-                    activation=nn.ReLU(inplace=self.flagReLUInplace) ) )
+            self.featUpSampler = WrappedModule(
+                nn.Sequential(
+                    cm3d.Interpolate3D_FixedScale(2),
+                    cm3d.Conv3D_W( interCh, interCh//2, 
+                        normLayer=cm3d.FeatureNorm3D(interCh//2), 
+                        activation=nn.ReLU(inplace=self.flagReLUInplace) ) ) )
             self.append_init_here(self.featUpSampler)
 
         # Pooling.
         if pooling:
-            self.spp = pooling.SPP3D( interCh, levels=4 )
+            self.spp = SPP3D( interCh, levels=4 )
             self.append_init_here(self.spp)
         else:
             self.spp = None

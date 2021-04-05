@@ -4,7 +4,7 @@
 # Date: 2021-03-21
 
 # Top level imports.
-from stereo.models.globals import GLOBAL
+from stereo.models.globals import ( PADDING_FIXED, PADDING_REFLECT, GLOBAL )
 
 # System modules.
 import numpy as np
@@ -33,8 +33,8 @@ class SelectedReLU(BaseModule):
         return selected_relu(x)
 
 PADDING_MODULE_TYPES = {
-    GLOBAL.PADDING_FIXED: nn.ZeroPad2d,
-    GLOBAL.PADDING_REFLECT: nn.ReflectionPad2d,
+    PADDING_FIXED: nn.ZeroPad2d,
+    PADDING_REFLECT: nn.ReflectionPad2d,
 }
 
 def get_padding_module(padding):
