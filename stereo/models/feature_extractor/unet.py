@@ -30,10 +30,10 @@ class UNet(FEBase):
         return dict(
             type=cls.__name__,
             initialChannels=32,
-            flagAvgPool=True,
+            flagEntryPool=True,
             freeze=False )
 
-    def __init__(self, initialChannels=32, flagAvgPool=True, freeze=False):
+    def __init__(self, initialChannels=32, flagEntryPool=True, freeze=False):
         super(UNet, self).__init__(
             levels=[8, 16, 32, 64],
             freeze=freeze)
@@ -41,8 +41,8 @@ class UNet(FEBase):
         self.flagTS = GLOBAL.torch_batch_normal_track_stat()
         self.flagReLUInplace = GLOBAL.torch_relu_inplace()
 
-        self.flagAvgPool = flagAvgPool
-        if ( not self.flagAvgPool ):
+        self.flagEntryPool = flagEntryPool
+        if ( not self.flagEntryPool ):
             self.levels = [ level//2 for level in self.levels ]
 
         self.inplanes = initialChannels
@@ -152,7 +152,7 @@ class UNet(FEBase):
         conv1 = self.convBnReLU1_3(conv1)
 
         # 1/2 -> 1/4.
-        if ( self.flagAvgPool ):
+        if ( self.flagEntryPool ):
             conv1 = F.max_pool2d(conv1, 3, 2, 1)
 
         # 1/4 -> 1/64.
