@@ -136,8 +136,8 @@ class DecoderBlock(BaseModule):
             if ( not m.is_initialized() ):
                 for mm in m.modules():
                     if isinstance(mm, nn.Conv3d):
-                        n = np.prod(mm.kernel_size) * mm.out_channels
-                        nn.init.normal_(mm.weight, 0, np.sqrt( 2. / n ))
+                        # n = np.prod(mm.kernel_size) * mm.out_channels
+                        # nn.init.normal_(mm.weight, 0, np.sqrt( 2. / n ))
                         if hasattr(mm.bias, 'data'):
                             nn.init.zeros_(mm.bias)
                 
