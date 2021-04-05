@@ -21,20 +21,29 @@ from stereo.models.common import pooling
 
 from stereo.models.register import ( FEAT_EXT, register )
 
+from .fe_base import FEBase
+
 @register(FEAT_EXT)
-class UNet(BaseModule):
+class UNet(FEBase):
     @classmethod
     def get_default_init_args(cls):
         return dict(
             type=cls.__name__,
             initialChannels=32,
+            flagAvgPool=True,
             freeze=False )
 
-    def __init__(self, initialChannels=32, freeze=False):
-        super(UNet, self).__init__(freeze=freeze)
+    def __init__(self, initialChannels=32, flagAvgPool=True, freeze=False):
+        super(UNet, self).__init__(
+            levels=[8, 16, 32, 64],
+            freeze=freeze)
 
         self.flagTS = GLOBAL.torch_batch_normal_track_stat()
         self.flagReLUInplace = GLOBAL.torch_relu_inplace()
+
+        self.flagAvgPool = flagAvgPool
+        if ( not self.flagAvgPool ):
+            self.levels = [ level//2 for level in self.levels ]
 
         self.inplanes = initialChannels
 
@@ -57,7 +66,7 @@ class UNet(BaseModule):
 
         # This does not make sense with very small feature size.
         self.pyramidPooling = \
-            pooling.SpatialPyramidPooling(128, levels=4, 
+            pooling.SPP2D(128, levels=4, 
                 lastActivation=nn.ReLU(inplace=self.flagReLUInplace))
 
         # iConvs.
@@ -143,10 +152,11 @@ class UNet(BaseModule):
         conv1 = self.convBnReLU1_3(conv1)
 
         # 1/2 -> 1/4.
-        pool1 = F.max_pool2d(conv1, 3, 2, 1)
+        if ( self.flagAvgPool ):
+            conv1 = F.max_pool2d(conv1, 3, 2, 1)
 
         # 1/4 -> 1/64.
-        conv3 = self.resBlock3(pool1)
+        conv3 = self.resBlock3(conv1)
         conv4 = self.resBlock5(conv3)
         conv5 = self.resBlock6(conv4)
         conv6 = self.resBlock7(conv5)
@@ -165,4 +175,5 @@ class UNet(BaseModule):
         proj5 = self.proj5(conv5)
         proj4 = self.proj4(conv4)
         proj3 = self.proj3(conv3)
-        return proj6,proj5,proj4,proj3
+
+        return [ proj3, proj4, proj5, proj6 ]

@@ -131,7 +131,7 @@ class HSMNet(BaseModule):
         right = inputs['img1']
 
         nsample = left.shape[0]
-        conv4,conv3,conv2,conv1  = self.featureExtractor(torch.cat([left,right],0))
+        conv1, conv2, conv3, conv4   = self.featureExtractor(torch.cat([left,right],0))
         conv40,conv30,conv20,conv10  = conv4[:nsample], conv3[:nsample], conv2[:nsample], conv1[:nsample]
         conv41,conv31,conv21,conv11  = conv4[nsample:], conv3[nsample:], conv2[nsample:], conv1[nsample:]
 

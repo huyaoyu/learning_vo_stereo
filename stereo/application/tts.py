@@ -148,6 +148,8 @@ class TTS(TrainTestBase):
         else:
             self.disable_batch_norm_track_running_stat()
 
+        self.set_padding_mode( conf['globals']['paddingMode'] )
+
         # Configure the model.
         self.model = make_object( MODELS, conf['tt']['model'] )
         self.model.initialize()

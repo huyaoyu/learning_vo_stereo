@@ -126,6 +126,11 @@ class TrainTestBase(object):
         self.frame.logger.info('Use track_running_stats=False.')
         modelGLOBAL.torch_batch_normal_track_stat(False)
 
+    def set_padding_mode(self, mode):
+        self.check_frame()
+        self.frame.logger.info(f'Set padding mode to {mode}')
+        modelGLOBAL.padding_mode(mode)
+
     def enable_nearest_interpolation(self):
         self.check_frame()
         self.frame.logger.info("Use nearest interpolation for true values. ")

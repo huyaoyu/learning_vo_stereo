@@ -15,5 +15,6 @@ from stereo.models import uncertainty
 
 # from stereo.models import hsm_ori
 from stereo.models import hsm
+from stereo.models import cost_vm_primitive
 
 from . import model_factory

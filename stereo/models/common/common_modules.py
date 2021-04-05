@@ -32,13 +32,24 @@ class SelectedReLU(BaseModule):
     def forward(self, x):
         return selected_relu(x)
 
+PADDING_MODULE_TYPES = {
+    GLOBAL.PADDING_FIXED: nn.ZeroPad2d,
+    GLOBAL.PADDING_REFLECT: nn.ReflectionPad2d,
+}
+
+def get_padding_module(padding):
+    global PADDING_MODULE_TYPES
+    paddingMode = GLOBAL.padding_mode()
+    paddingType = PADDING_MODULE_TYPES[paddingMode]
+    return paddingType(padding=padding)
+
 class Conv(BaseModule):
     def __init__(self, inCh, outCh, k=3, s=1, p=1, d=1, 
         normLayer=None, activation=None, bias=False):
         super(Conv, self).__init__()
 
         moduleList = [
-            nn.ReflectionPad2d(padding=p),
+            get_padding_module(padding=p),
             nn.Conv2d(inCh, outCh, 
                 kernel_size=k, stride=s, padding=0, dilation=d, bias=bias) ]
         
@@ -69,7 +80,7 @@ class Conv_W(BaseModule):
         p = int(k // 2 * d) # Padding.
 
         moduleList = [
-            nn.ReflectionPad2d(padding=p), 
+            get_padding_module(padding=p), 
             nn.Conv2d(inCh, outCh, kernel_size=k, stride=1, padding=0, dilation=d, bias=bias)
         ]
 
@@ -100,7 +111,7 @@ class Conv_Half(BaseModule):
         p = int(k // 2 * d) # Padding.
 
         moduleList = [
-            nn.ReflectionPad2d(padding=p), 
+            get_padding_module(padding=p), 
             nn.Conv2d(inCh, outCh, kernel_size=k, stride=2, padding=0, dilation=d, bias=bias)
         ]
 
