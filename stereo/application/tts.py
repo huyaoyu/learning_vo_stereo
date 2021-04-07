@@ -58,65 +58,15 @@ class TTS(TrainTestBase):
 
     # Overload parent's function.
     def init_workflow(self):
+        conf = self.conf
+        
         # === Create the AccumulatedObjects. ===
-        self.frame.add_accumulated_value("L0", 50)
-        self.frame.add_accumulated_value("LT", 10)
-        self.frame.add_accumulated_value("LT0", 10)
-        self.frame.add_accumulated_value("TDA", 1)
-        self.frame.add_accumulated_value('lr1000')
-
-        self.frame.AV["loss"].avgWidth = 10
+        for argDict in conf['tt']['runningInfo']:
+            self.register_running_info( **argDict )
         
         # ======= AVP. ======
-        # === Create a AccumulatedValuePlotter object for ploting. ===
-        if ( True == self.flagUseIntPlotter ):
-            self.frame.AVP.append(\
-                WorkFlow.PLTIntermittentPlotter(\
-                    self.frame.workingDir + "/IntPlot", 
-                    "loss", self.frame.AV, ["loss", "L0"], [True, True], semiLog=True) )
-
-            self.frame.AVP.append(\
-                WorkFlow.PLTIntermittentPlotter(\
-                    self.frame.workingDir + "/IntPlot", 
-                    "ITT", self.frame.AV, ["L0", "LT0"], [True, True], semiLog=True) )
-
-            self.frame.AVP.append(\
-                WorkFlow.PLTIntermittentPlotter(\
-                    self.frame.workingDir + "/IntPlot", 
-                    "LT", self.frame.AV, ["LT", "LT0"], [False, False], semiLog=True) )
-            
-            self.frame.AVP.append(\
-                WorkFlow.PLTIntermittentPlotter(\
-                    self.frame.workingDir + "/IntPlot", 
-                    "TDA", self.frame.AV, ["TDA"], [False], semiLog=False) )
-
-            self.frame.AVP.append(\
-                WorkFlow.PLTIntermittentPlotter(\
-                    self.frame.workingDir + "/IntPlot", 
-                    'lr1000', self.frame.AV, ['lr1000'], [False], semiLog=True) )
-        else:
-            self.frame.AVP.append(\
-                WorkFlow.VisdomLinePlotter(\
-                    "loss", self.frame.AV, ["loss", "L0"], [True, True], semiLog=True) )
-
-            self.frame.AVP.append(\
-                WorkFlow.VisdomLinePlotter(\
-                    "ITT", self.frame.AV, ["L0", "LT0"], [True, True], semiLog=True) )
-
-            self.frame.AVP.append(\
-                WorkFlow.VisdomLinePlotter(\
-                    "LT", self.frame.AV, ["LT", "LT0"], [False, False], semiLog=True) )
-
-            self.frame.AVP.append(\
-                WorkFlow.VisdomLinePlotter(\
-                    "TDA", self.frame.AV, ["TDA"], [False], semiLog=False) )
-
-            self.frame.AVP.append(\
-                WorkFlow.VisdomLinePlotter(\
-                    'lr1000', self.frame.AV, ['lr1000'], [False], semiLog=True) )
-
-    # def init_workflow(self):
-    #     raise Exception("Not implemented.")
+        for argDict in conf['tt']['runningInfoPlotters']:
+            self.register_info_plotter( **argDict )
 
     # def init_torch(self):
     #     raise Exception("Not implemented.")
@@ -242,8 +192,15 @@ class TTS(TrainTestBase):
             imgR  = imgR.cuda()
             dispL = dispL.cuda()
 
+            # Update the inputs.
+            inputs['img0']  = imgL
+            inputs['img1']  = imgR
+            inputs['disp0'] = dispL
+
             if ( validL is not None):
                 validL = validL.cuda()
+                # Update inputs.
+                inputs['valid0'] = validL
 
         self.optimizer.zero_grad()
 
@@ -267,37 +224,19 @@ class TTS(TrainTestBase):
         if ( self.flagUseLRS ):
             self.lrs.step(loss)
 
-        self.frame.AV['loss'].push_back( loss.item() )
-        self.frame.AV['L0'].push_back( lossDict[LT.LOSS_LIST][0].item() )
-        if ( validL is not None ):
-            self.frame.AV["TDA"].push_back( dispL[validL].mean().item() )
-        else:
-            self.frame.AV["TDA"].push_back( dispL.mean().item() )
-        self.frame.AV['lr1000'].push_back( self.optimizer.param_groups[0]['lr'] * 1000 )
-
+        # Update the temporary context.
+        self.ctxInputs     = inputs
+        self.ctxOutputs    = outputs
+        self.ctxTrueValues = trueValueDict
+        self.ctxLossValues = lossDict
         self.countTrain += 1
 
-        if ( self.countTrain % self.trainIntervalAccWrite == 0 ):
-            self.frame.write_accumulated_values()
-
-        # Plot accumulated values.
-        if ( self.countTrain % self.trainIntervalAccPlot == 0 ):
-            self.frame.plot_accumulated_values()
+        # Update running info.
+        self.update_running_info(training=True)
+        self.save_running_info(training=True)
 
         # Auto-save.
-        if ( 0 != self.autoSaveModelLoops ):
-            if ( self.countTrain % self.autoSaveModelLoops == 0 ):
-                modelName = "AutoSave_%08d" % ( self.countTrain )
-                optName   = "AutoSave_Opt_%08d" % ( self.countTrain )
-                self.frame.logger.info("Auto-save the model and optimizer.")
-                self.frame.save_model( self.model, modelName )
-                self.frame.save_optimizer( self.optimizer, optName )
-
-        if ( self.countTrain % self.autoSnapLoops == 0 ):
-            modelName = "AutoSnap"
-            optName   = "AutoSnap_Opt"
-            self.frame.save_model( self.model, modelName )
-            self.frame.save_optimizer( self.optimizer, optName )
+        self.auto_save()
 
         self.frame.logger.info("E%d, L%d: %s" % (epochCount, self.countTrain, self.frame.get_log_str()))
 
@@ -356,8 +295,13 @@ class TTS(TrainTestBase):
             imgR  = imgR.cuda()
             dispL = dispL.cuda()
 
+            inputs['img0']  = imgL
+            inputs['img1']  = imgR
+            inputs['disp0'] = dispL
+
             if ( validL is not None ):
                 validL = validL.cuda()
+                inputs['valid0'] = validL
 
         # Create a set of true data with various scales.
         trueValueDict = self.trueValueGenerator.make_true_values(\
@@ -379,7 +323,12 @@ class TTS(TrainTestBase):
                 mask    = dispLNP <= self.trueValueGenerator.trueDispMax
                 # mask    = mask.astype(np.int)
                 metrics = self.metric.apply( dispLNP, disp0.squeeze(1).cpu().numpy(), mask )
-                
+
+            self.ctxInputs     = inputs
+            self.ctxOutputs    = outputs
+            self.ctxTrueValues = trueValueDict
+            self.ctxLossValues = lossDict
+
             self.countTest += 1
 
             if ( True == self.flagTest ):
@@ -397,12 +346,11 @@ class TTS(TrainTestBase):
                     [ dispL ] * len(predDispList), \
                     predDispList )
 
-            # AccumulatedValue objects.
-            self.frame.AV["LT"].push_back(loss.item(), self.countTest)
-            self.frame.AV["LT0"].push_back(lossDict[LT.LOSS_LIST][0].item(), self.countTest)
+            # Update running info.
+            self.update_running_info(training=False)
 
             if ( flagSave ):
-                self.frame.plot_accumulated_values()
+                self.save_running_info(training=False)
 
             return loss.item(), metrics
         else:

@@ -13,12 +13,27 @@ import os
 import torch
 import torch.nn as nn
 
+# Local installed.
+from workflow import WorkFlow, TorchFlow
+
 # Models.
 from stereo.models.globals import GLOBAL as modelGLOBAL
 
 from stereo.dataset.compound_loader import CompoundLoader
 
 RECOMMENDED_MIN_INTERMITTENT_PLOT_INTERVAL = 100
+
+class InfoUpdater(object):
+    def __init__(self, ctxHandel, name, func):
+        super(InfoUpdater, self).__init__()
+
+        self.ctx  = ctxHandel
+        self.name = name
+        self.func = func
+
+    def __call__(self):
+        self.ctx.frame.AV[self.name].push_back( 
+            self.func( self.ctx ) )
 
 class TrainTestBase(object):
     def __init__(self, workingDir, conf, frame=None, modelName='Stereo'):
@@ -66,6 +81,16 @@ class TrainTestBase(object):
         self.trueValueGenerator  = None # make_object later.
         self.lossComputer        = None # make_object later.
         self.testResultSubfolder = conf['tt']['testResultSubfolder']
+
+        # Temporary values during traing and testing.
+        self.ctxInputs     = None
+        self.ctxOutputs    = None
+        self.ctxTrueValues = None
+        self.ctxLossValues = None
+
+        # InfoUpdaters.
+        self.trainingInfoUpdaters = []
+        self.testingInfoUpdaters  = []
 
     def initialize(self):
         self.check_frame()
@@ -279,3 +304,54 @@ class TrainTestBase(object):
 
     def init_optimizer(self):
         raise Exception("init_optimizer() virtual interface.")
+
+    def register_running_info(self, phase, name, avgSteps, func):
+        assert( avgSteps >= 1 )
+        self.frame.add_accumulated_value(name, avgSteps, overwrite=True)
+        if ( phase == 'training' ):
+            self.trainingInfoUpdaters.append( InfoUpdater( self, name, func ) )
+        elif ( phase == 'testing' ):
+            self.testingInfoUpdaters.append( InfoUpdater( self, name, func ) )
+
+    def register_info_plotter(self, name, infoNames, avgFlags, subDir='IntPlot', flagSemiLog=False):
+        if ( self.flagUseIntPlotter ):
+            self.frame.AVP.append(\
+                WorkFlow.PLTIntermittentPlotter(\
+                    os.path.join(self.frame.workingDir, subDir), 
+                    name, self.frame.AV, infoNames, avgFlags, semiLog=flagSemiLog) )
+        else:
+            self.frame.AVP.append(\
+                WorkFlow.VisdomLinePlotter(\
+                    name, self.frame.AV, infoNames, avgFlags, semiLog=flagSemiLog) )
+
+    def update_running_info(self, training=True):
+        updaters = self.trainingInfoUpdaters if training else self.testingInfoUpdaters
+        for updater in updaters:
+            updater()
+
+    def save_running_info(self, training=True):
+        if ( training ):
+            # Save the values.
+            if ( self.countTrain % self.trainIntervalAccWrite == 0 ):
+                self.frame.write_accumulated_values()
+
+            # Plot accumulated values.
+            if ( self.countTrain % self.trainIntervalAccPlot == 0 ):
+                self.frame.plot_accumulated_values()
+        else:
+            self.frame.plot_accumulated_values()
+
+    def auto_save(self):
+        if ( 0 != self.autoSaveModelLoops ):
+            if ( self.countTrain % self.autoSaveModelLoops == 0 ):
+                modelName = "AutoSave_%08d" % ( self.countTrain )
+                optName   = "AutoSave_Opt_%08d" % ( self.countTrain )
+                self.frame.logger.info("Auto-save the model and optimizer.")
+                self.frame.save_model( self.model, modelName )
+                self.frame.save_optimizer( self.optimizer, optName )
+
+        if ( self.countTrain % self.autoSnapLoops == 0 ):
+            modelName = "AutoSnap"
+            optName   = "AutoSnap_Opt"
+            self.frame.save_model( self.model, modelName )
+            self.frame.save_optimizer( self.optimizer, optName )
