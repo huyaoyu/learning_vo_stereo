@@ -20,6 +20,7 @@ from workflow import WorkFlow, TorchFlow
 from stereo.models.globals import GLOBAL as modelGLOBAL
 
 from stereo.dataset.compound_loader import CompoundLoader
+from stereo.visualization.figure_grid import FigureGrid
 
 RECOMMENDED_MIN_INTERMITTENT_PLOT_INTERVAL = 100
 
@@ -81,6 +82,8 @@ class TrainTestBase(object):
         self.trueValueGenerator  = None # make_object later.
         self.lossComputer        = None # make_object later.
         self.testResultSubfolder = conf['tt']['testResultSubfolder']
+        # Test figure generator.
+        self.testFigGenerator = None
 
         # Temporary values during traing and testing.
         self.ctxInputs     = None
@@ -103,6 +106,7 @@ class TrainTestBase(object):
         self.init_model()
         self.post_init_model()
         self.init_optimizer()
+        self.init_test_figure_generator()
     
     def train(self):
         self.check_frame()
@@ -304,6 +308,9 @@ class TrainTestBase(object):
 
     def init_optimizer(self):
         raise Exception("init_optimizer() virtual interface.")
+
+    def init_test_figure_generator(self):
+        self.testFigGenerator = FigureGrid( **self.conf['tt']['testFigGenerator'] )
 
     def register_running_info(self, phase, name, avgSteps, func):
         assert( avgSteps >= 1 )

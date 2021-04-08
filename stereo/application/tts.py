@@ -169,6 +169,9 @@ class TTS(TrainTestBase):
         
         self.metric = make_metric( METRICS, self.conf['tt']['metric'] )
 
+    # def init_test_figure_generator(self):
+    #     super(TTS, self).init_test_figure_generator()
+
     def interpolate(self, t, shape):
         if ( self.flagIntNearest ):
             return F.interpolate( t, shape, 
@@ -240,32 +243,13 @@ class TTS(TrainTestBase):
 
         self.frame.logger.info("E%d, L%d: %s" % (epochCount, self.countTrain, self.frame.get_log_str()))
 
-    def draw_test_results(self, identifier,
-            imgL, imgR,
-            trueDList, predDList ):
-        batchSize = predDList[0].shape[0]
-        
-        img0List = tensor_handles.batch_img_2_array_list(imgL)
-        img1List = tensor_handles.batch_img_2_array_list(imgR)
-
+    def draw_test_results(self, identifier, batchSize ):
         for i in range(batchSize):
-            img0 = tensor_handles.simple_array_2_rgb(img0List[i])
-            img1 = tensor_handles.simple_array_2_rgb(img1List[i])
-
-            trueDispList = []
-            predDispList = []
-            
-            for j in range( len(trueDList) ):
-                trueDispList.append( trueDList[j][i, 0, :, :].detach().cpu().numpy() )
-                predDispList.append( predDList[j][i, 0, :, :].detach().cpu().numpy() )
-
-            canvas = compose_results( 
-                img0, img1, trueDispList, predDispList )
+            img = self.testFigGenerator( self, i )
 
             figName = "%s_%02d" % (identifier, i)
             figName = self.frame.compose_file_name(figName, "png", subFolder=self.testResultSubfolder)
-
-            cv2.imwrite(figName, canvas)
+            cv2.imwrite(figName, img)
 
     def save_test_disp(self, identifier, pred):
         batchSize = pred.size()[0]
@@ -310,8 +294,7 @@ class TTS(TrainTestBase):
         with torch.no_grad():
             outputs = self.model( { 'img0':imgL, 'img1':imgR } )
         
-        predDispList = outputs[TT.DISP_LIST]
-        disp0 = predDispList[0]
+        disp0 = outputs[TT.DISP_LIST][0]
             
         if ( not flagInTrainingTest ):
             with torch.no_grad():
@@ -340,11 +323,7 @@ class TTS(TrainTestBase):
                 # Draw and save results.
                 identifier = "test_%d" % (count - 1)
                 self.save_test_disp( identifier, disp0 )
-
-                self.draw_test_results( identifier, 
-                    imgL, imgR, \
-                    [ dispL ] * len(predDispList), \
-                    predDispList )
+                self.draw_test_results( identifier, imgL.shape[0] )
 
             # Update running info.
             self.update_running_info(training=False)
