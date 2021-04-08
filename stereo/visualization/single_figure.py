@@ -109,7 +109,7 @@ class PredDispGenerator(SingleChFloatGenerator):
             else [ trueDisp.min(), trueDisp.max() ]
 
         # Statistics.
-        diff = trueDisp - predDisp
+        diff = np.abs(trueDisp - predDisp)
         s = 'em: %.2f, es: %.2f, l: [%.2f, %.2f]' \
             % ( diff.mean(), diff.std(), limits[0], limits[1] )
         self.append_desc_string( s )
@@ -132,6 +132,7 @@ class PredDispErrorGenerator(SingleChFloatGenerator):
 
         # Statistics.
         diff = trueDisp - predDisp
+        absDiff = np.abs(diff)
 
         # Get the limits.
         limits = self.limits \
@@ -140,7 +141,7 @@ class PredDispErrorGenerator(SingleChFloatGenerator):
 
         # Get the description string.
         s = 'm: %.2f, s: %.2f, l: [%.2f, %.2f]' \
-            % ( diff.mean(), diff.std(), limits[0], limits[1] )
+            % ( absDiff.mean(), absDiff.std(), limits[0], limits[1] )
         self.append_desc_string( s )
 
         # Conver the disparity to RGB image.
