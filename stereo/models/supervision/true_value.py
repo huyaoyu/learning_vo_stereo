@@ -124,7 +124,8 @@ class OriScaleTrueValues(TrueValueGenerator):
                     TT.DISP: dispL }
 
             if ( validL is not None ):
-                maskL = torch.logical_and( maskL, validL )
+                # maskL = torch.logical_and( maskL, validL ) # Cause issues for Python2.7.
+                maskL = maskL & validL
 
             trueValues[TT.MASK] = maskL
 

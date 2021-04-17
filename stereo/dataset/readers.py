@@ -254,7 +254,8 @@ class ImageReader3Channels(ImageReader):
         test_file(fn)
         img = cv2.imread(fn, cv2.IMREAD_UNCHANGED)
         if ( img.ndim == 2 ):
-            img = np.tile( img.reshape( ( *img.shape, 1 ) ), 3 )
+            # img = np.tile( img.reshape( ( *img.shape, 1 ) ), 3 ) # Cause issues with Python2.7
+            img = np.tile( img.reshape( ( img.shape[0], img.shap[1], 1 ) ), 3 )
 
         if ( self.flagFloat ):
             return img.astype(np.float32)

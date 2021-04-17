@@ -1,4 +1,4 @@
-# coding=utf-8
+# -*- coding: future_fstrings -*-
 
 # Author: Yaoyu Hu <yaoyuh@andrew.cmu.edu>
 # Date: 2021-03-23
@@ -15,8 +15,9 @@ from stereo.application import arg_utils
 from stereo.application import arg_parser
 from stereo.application.tts import TTS
 
-import faulthandler
-faulthandler.enable()
+if ( sys.version_info[0] >= 3 ):
+    import faulthandler
+    faulthandler.enable()
 
 def print_delimeter(c = "=", n = 20, title = "", leading = "\n", ending = "\n"):
     d = [c for i in range( int(n/2) )]
@@ -211,7 +212,10 @@ def main(args, sc):
 
                 wf.logger.info("Test %d, lossTest = %f." % ( batchIdx, loss ))
 
-                testLossList.append( [ dataDictTest["img0"].size()[0], loss, *(np.mean(metrics, axis=0).tolist()) ] )
+                # testLossList.append( [ dataDictTest["img0"].size()[0], loss, *(np.mean(metrics, axis=0).tolist()) ] )
+                tempList = [ dataDictTest["img0"].size()[0], loss ]
+                tempList.extend( np.mean(metrics, axis=0).tolist() )
+                testLossList.append( tempList )
 
                 testMetricList = np.vstack((testMetricList, metrics))
 
