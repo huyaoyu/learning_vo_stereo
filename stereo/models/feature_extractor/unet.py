@@ -38,7 +38,7 @@ class UNet(FEBase):
             levels=[8, 16, 32, 64],
             freeze=freeze)
 
-        self.flagTS = GLOBAL.torch_batch_normal_track_stat()
+        # self.flagTS = GLOBAL.torch_batch_normal_track_stat()
         self.flagReLUInplace = GLOBAL.torch_relu_inplace()
 
         self.flagEntryPool = flagEntryPool
