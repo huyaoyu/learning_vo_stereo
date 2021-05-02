@@ -17,6 +17,7 @@ import torch.nn.functional as F
 # Local packages.
 from stereo.models.common.base_module import BaseModule
 from stereo.models.cost.cost_volume import CVDiff
+from stereo.models.cost_regulator.c3d_spp_cls import C3D_SPP_CLS
 from stereo.models.disparity_regression.cls_linear_combination import ClsLinearCombination
 from stereo.models.feature_extractor.unet import UNet
 from stereo.models.supervision.true_value import TT
@@ -24,7 +25,7 @@ from stereo.models.uncertainty.classified_cost_volume_epistemic import Classifie
 from . import sub_modules as sm
 
 from stereo.models.register import (
-    FEAT_EXT, COST_VOL, DISP_REG, MODELS, register, make_object )
+    FEAT_EXT, COST_VOL, COST_PRC, DISP_REG, MODELS, register, make_object )
 
 @register(MODELS)
 class CostVolPrimitive(BaseModule):
@@ -32,6 +33,7 @@ class CostVolPrimitive(BaseModule):
         maxDisp=192,
         featExtConfig=None, 
         costVolConfig=None,
+        costPrcConfig=None,
         dispRegConfigs=None,
         uncertainty=False,
         freeze=False):
@@ -61,22 +63,14 @@ class CostVolPrimitive(BaseModule):
         self.costVol = make_object(COST_VOL, costVolConfig)
         self.append_init_impl(self.costVol)
 
-        # Cost volume regularization layers.
-        nLevels = self.featureExtractor.n_levels()
-        costRegulatorOutCh = 2 if self.uncertainty else 1
-        self.CostRegulatorList = nn.ModuleList()
-        for i in range( nLevels ):
-            flagUpsample = True if i != 0 else False
-            flagPool     = True if i == nLevels - 1 else False
-            regulator = sm.DecoderBlock(
-                6, 32, 32, 
-                outCh=costRegulatorOutCh, 
-                outputUpSampledFeat=flagUpsample, 
-                pooling=flagPool)
-            self.CostRegulatorList.append( regulator )
-            self.append_init_impl( regulator )
+        # Cost volume processing/regularization layers.
+        if ( costPrcConfig is None ):
+            costPrcConfig = C3D_SPP_CLS.get_default_init_args()
+        self.costProcessor = make_object(COST_PRC, costPrcConfig)
+        self.append_init_impl( self.costProcessor )
 
         # Disparity regressions.
+        nLevels = self.featureExtractor.n_levels()
         if ( dispRegConfigs is None ):
             dispRegConfigs = [ ClsLinearCombination.get_default_init_args() for _ in range(nLevels)]
         else:
@@ -131,18 +125,8 @@ class CostVolPrimitive(BaseModule):
             self.costVol( feat[:nSamples], feat[nSamples:], self.maxDisp//level ) 
             for feat, level in zip(featList, levels) ]
 
-        # Cost volume regularization.
-        costList = []
-        start    = len(levels) - 1
-        for i in range( start, -1, -1 ):
-            if ( i == start ):
-                feat = costVolList[i]
-            else:
-                feat = torch.cat( ( feat2x, costVolList[i] ), dim=1 )
-            cost, feat2x = self.CostRegulatorList[i]( feat )
-            costList.append(cost)
-        # Make the order consistent.
-        costList = costList[::-1]
+        # Cost volume processing/regularization.
+        costList = self.costProcessor(costVolList)
 
         # Prediction.
         pred0, logSigmaSqured0 = self.predict_disp( 

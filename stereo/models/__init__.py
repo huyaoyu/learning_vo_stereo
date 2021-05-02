@@ -8,6 +8,7 @@ from stereo.models import globals
 from stereo.models import common
 
 from stereo.models import cost
+from stereo.models import cost_regulator
 from stereo.models import disparity_regression
 from stereo.models import feature_extractor
 from stereo.models import supervision

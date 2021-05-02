@@ -58,6 +58,12 @@ class BaseModule(nn.Module):
                     elif ( isinstance( mm, nn.InstanceNorm2d ) ):
                         mm.weight.data.fill_(1.0)
                         mm.bias.data.zero_()
+                    elif ( isinstance( mm, nn.BatchNorm3d ) ):
+                        mm.weight.data.fill_(1.0)
+                        mm.bias.data.zero_()
+                    elif ( isinstance( mm, nn.InstanceNorm3d ) ):
+                        mm.weight.data.fill_(1.0)
+                        mm.bias.data.zero_()
                 
                 m.mark_initialized()
         
