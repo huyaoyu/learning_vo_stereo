@@ -22,7 +22,6 @@ from stereo.models.disparity_regression.cls_linear_combination import ClsLinearC
 from stereo.models.feature_extractor.unet import UNet
 from stereo.models.supervision.true_value import TT
 from stereo.models.uncertainty.classified_cost_volume_epistemic import ClassifiedCostVolumeEpistemic
-from . import sub_modules as sm
 
 from stereo.models.register import (
     FEAT_EXT, COST_VOL, COST_PRC, DISP_REG, MODELS, register, make_object )
