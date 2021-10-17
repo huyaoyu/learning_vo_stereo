@@ -176,6 +176,7 @@ class C3D_SPP_CLS(BaseModule):
     @classmethod
     def get_default_init_args(cls):
         return dict(
+            type=cls.__name__,
             specs=C3D_SPP_CLS_DEFAULT_SPECS,
             freeze=False )
 
